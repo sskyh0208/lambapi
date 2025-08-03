@@ -5,6 +5,7 @@
 ## 概要
 
 lambapi は、AWS Lambda で直感的でモダンな API を構築できる軽量フレームワークです。パスパラメータとクエリパラメータの自動注入、型変換、デフォルト値サポートなど、モダンな Web API 開発の機能を提供します。
+ドキュメントは [https://sskyh0208.github.io/lambapi/](https://sskyh0208.github.io/lambapi/) で公開されています。
 
 ## 特徴
 
@@ -469,5 +470,4 @@ MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してくださ�
 
 ## 関連プロジェクト
 
-- [Mangum](https://mangum.io/) - ASGI アプリケーションを Lambda で実行
 - [AWS Lambda Python Runtime](https://docs.aws.amazon.com/lambda/latest/dg/python-programming-model.html)
