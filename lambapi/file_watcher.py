@@ -6,25 +6,37 @@
 import os
 import time
 from pathlib import Path
-from typing import List, Set, Callable, Optional, Any
+from typing import List, Set, Callable, Optional, Any, TYPE_CHECKING
 from threading import Thread
 
-try:
-    from watchdog.observers import Observer  # type: ignore
-    from watchdog.events import FileSystemEventHandler, FileSystemEvent  # type: ignore
+if TYPE_CHECKING:
+    from watchdog.observers.api import BaseObserver as ObserverType
 
+# Define Observer as a variable that can hold the class or be None.
+Observer = None
+
+try:
+    # Import the class under an alias to avoid name conflict
+    from watchdog.observers import Observer as WatchdogObserver
+    from watchdog.events import FileSystemEventHandler, FileSystemEvent
+
+    # Assign the imported class to our variable
+    Observer = WatchdogObserver
     HAS_WATCHDOG = True
+
 except ImportError:
     HAS_WATCHDOG = False
 
     # ダミークラスを定義
-    class FileSystemEventHandler:  # type: ignore
+    class FileSystemEventHandler(object):  # type: ignore
         pass
 
-    class FileSystemEvent:  # type: ignore
-        pass
+    class FileSystemEvent(object):  # type: ignore
+        def __init__(self, src_path: str) -> None:
+            self.src_path = src_path
+            self.is_directory: Optional[bool] = None
 
-    Observer = None
+    # 'Observer' is already None if the import fails, so no assignment is needed here.
 
 
 class ReloadHandler(FileSystemEventHandler):
@@ -63,12 +75,11 @@ class ReloadHandler(FileSystemEventHandler):
 
         return True
 
-    def on_modified(self, event: FileSystemEvent) -> None:
-        """ファイル変更時の処理"""
-        if event.is_directory:
-            return
+    def _dispatch_reload(self, path: Any) -> None:
+        """Helper to decode path and trigger reload."""
+        path_str = os.fsdecode(path)
 
-        if not self.should_reload(event.src_path):
+        if not self.should_reload(path_str):
             return
 
         # デバウンス処理
@@ -76,24 +87,26 @@ class ReloadHandler(FileSystemEventHandler):
         if now - self.last_reload < self.debounce_delay:
             return
 
-        print(f"🔄 ファイル変更を検知: {event.src_path}")
+        print(f"🔄 ファイル変更を検知: {path_str}")
         print("🔄 サーバーを再起動中...")
 
         self.last_reload = now
         self.restart_callback()
 
+    def on_modified(self, event: FileSystemEvent) -> None:
+        """ファイル変更時の処理"""
+        if not event.is_directory:
+            self._dispatch_reload(event.src_path)
+
     def on_created(self, event: FileSystemEvent) -> None:
         """ファイル作成時の処理"""
-        self.on_modified(event)
+        if not event.is_directory:
+            self._dispatch_reload(event.src_path)
 
     def on_moved(self, event: FileSystemEvent) -> None:
         """ファイル移動時の処理"""
-        if hasattr(event, "dest_path"):
-            # ファイル移動の場合は移動先をチェック
-            modified_event = type(
-                "Event", (), {"is_directory": event.is_directory, "src_path": event.dest_path}
-            )()
-            self.on_modified(modified_event)
+        if not event.is_directory and hasattr(event, "dest_path"):
+            self._dispatch_reload(event.dest_path)
 
 
 class FileWatcher:
@@ -118,12 +131,12 @@ class FileWatcher:
         }
         self.debounce_delay = debounce_delay
 
-        self.observer: Optional[Observer] = None
+        self.observer: Optional["ObserverType"] = None
         self.is_watching = False
 
     def start(self) -> bool:
         """ファイル監視を開始"""
-        if not HAS_WATCHDOG:
+        if not HAS_WATCHDOG or Observer is None:
             print("⚠️ watchdog ライブラリがインストールされていません")
             print("   ホットリロード機能を使用するには以下を実行してください:")
             print("   pip install 'lambapi[dev]' または pip install watchdog")
@@ -157,7 +170,8 @@ class FileWatcher:
 
     def stop(self) -> None:
         """ファイル監視を停止"""
-        if self.observer and self.is_watching:
+        if self.is_watching:
+            assert self.observer is not None, "Observer must be initialized if watching is active"
             self.observer.stop()
             self.observer.join()
             self.is_watching = False
