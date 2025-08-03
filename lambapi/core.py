@@ -116,6 +116,9 @@ class API(BaseRouterMixin):
         self.context = context
         self.root_path = self._validate_root_path(root_path)
         self.routes: List[Route] = []
+        # 高速ルート検索のための最適化構造
+        self._exact_routes: Dict[str, Dict[str, Route]] = {}  # method -> {path -> route}
+        self._pattern_routes: Dict[str, List[Route]] = {}  # method -> [routes with params]
         self._middleware: List[Callable] = []
         self._cors_config: Optional[CORSConfig] = None
         self._error_registry = get_global_registry()
@@ -167,6 +170,31 @@ class API(BaseRouterMixin):
         """デフォルトエラーハンドラーデコレータ"""
         self._error_registry.set_default_handler(handler_func)
         return handler_func
+
+    def _update_route_index(self, route: Route) -> None:
+        """ルートを高速検索用インデックスに追加"""
+        method = route.method
+
+        # メソッド別辞書の初期化
+        if method not in self._exact_routes:
+            self._exact_routes[method] = {}
+        if method not in self._pattern_routes:
+            self._pattern_routes[method] = []
+
+        # パスパラメータがない場合は完全一致テーブルに追加
+        if "{" not in route.path:
+            self._exact_routes[method][route.path] = route
+        else:
+            # パスパラメータがある場合はパターンマッチング用リストに追加
+            self._pattern_routes[method].append(route)
+
+    def _rebuild_route_index(self) -> None:
+        """ルートインデックスを再構築（include_router 時に使用）"""
+        self._exact_routes.clear()
+        self._pattern_routes.clear()
+
+        for route in self.routes:
+            self._update_route_index(route)
 
     def enable_cors(
         self,
@@ -221,6 +249,9 @@ class API(BaseRouterMixin):
             else:
                 self.routes.extend(router.routes)
 
+        # ルートインデックスを再構築
+        self._rebuild_route_index()
+
     def _add_route(
         self,
         path: str,
@@ -240,19 +271,28 @@ class API(BaseRouterMixin):
 
         route = Route(path, method, handler, request_format, response_format, cors_config)
         self.routes.append(route)
+        self._update_route_index(route)
         return handler
 
     def _find_route(
         self, path: str, method: str
     ) -> tuple[Optional[Route], Optional[Dict[str, str]]]:
-        """マッチするルートを検索"""
+        """マッチするルートを検索（最適化版）"""
         # root_path を考慮してパスを正規化
         normalized_path = self._normalize_path(path)
 
-        for route in self.routes:
+        # 1. 完全一致検索（O(1)）
+        exact_routes = self._exact_routes.get(method, {})
+        if normalized_path in exact_routes:
+            return exact_routes[normalized_path], {}
+
+        # 2. パターンマッチング検索（パラメータ付きルート）
+        pattern_routes = self._pattern_routes.get(method, [])
+        for route in pattern_routes:
             path_params = route.match(normalized_path, method)
             if path_params is not None:
                 return route, path_params
+
         return None, None
 
     def _call_handler_with_params(
