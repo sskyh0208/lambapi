@@ -222,7 +222,75 @@ def start_server(
         return handler
 
     server_address = (host, port)
-    httpd = ServerWithHandler(server_address, handler_factory(lambda_handler), lambda_handler)
+    
+    # ポートが既に使用されているかチェック
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind((host, port))
+        sock.close()
+    except OSError as e:
+        sock.close()
+        if e.errno == 48 or "Address already in use" in str(e):  # macOS/Linux
+            print(f"❌ エラー: ポート {port} は既に使用されています")
+            print(f"""
+💡 解決方法:
+   1. 別のポートを使用してください:
+      lambapi serve {sys.argv[1] if len(sys.argv) > 1 else 'app'} --port {port + 1}
+   
+   2. 使用中のプロセスを確認:
+      lsof -i :{port}
+   
+   3. プロセスを停止:
+      kill <PID>
+""")
+            sys.exit(1)
+        elif e.errno == 10048 or "Only one usage of each socket address" in str(e):  # Windows
+            print(f"❌ エラー: ポート {port} は既に使用されています")
+            print(f"""
+💡 解決方法:
+   1. 別のポートを使用してください:
+      lambapi serve {sys.argv[1] if len(sys.argv) > 1 else 'app'} --port {port + 1}
+   
+   2. 使用中のプロセスを確認:
+      netstat -ano | findstr :{port}
+""")
+            sys.exit(1)
+        else:
+            print(f"❌ サーバー起動エラー: {e}")
+            sys.exit(1)
+    
+    try:
+        httpd = ServerWithHandler(server_address, handler_factory(lambda_handler), lambda_handler)
+    except OSError as e:
+        if e.errno == 48 or "Address already in use" in str(e):  # macOS/Linux
+            print(f"❌ エラー: ポート {port} は既に使用されています")
+            print(f"""
+💡 解決方法:
+   1. 別のポートを使用してください:
+      lambapi serve {sys.argv[1] if len(sys.argv) > 1 else 'app'} --port {port + 1}
+   
+   2. 使用中のプロセスを確認:
+      lsof -i :{port}
+   
+   3. プロセスを停止:
+      kill <PID>
+""")
+            sys.exit(1)
+        elif e.errno == 10048 or "Only one usage of each socket address" in str(e):  # Windows
+            print(f"❌ エラー: ポート {port} は既に使用されています")
+            print(f"""
+💡 解決方法:
+   1. 別のポートを使用してください:
+      lambapi serve {sys.argv[1] if len(sys.argv) > 1 else 'app'} --port {port + 1}
+   
+   2. 使用中のプロセスを確認:
+      netstat -ano | findstr :{port}
+""")
+            sys.exit(1)
+        else:
+            print(f"❌ サーバー起動エラー: {e}")
+            sys.exit(1)
 
     print(
         f"""
