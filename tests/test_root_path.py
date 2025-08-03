@@ -6,7 +6,8 @@ API クラスの root_path 機能が正しく動作することを確認する�
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from lambapi import API
 
@@ -102,13 +103,13 @@ def test_route_matching_with_root_path():
         "queryStringParameters": None,
         "body": None,
     }
-    
+
     api = API(event, None, "/api/v1")
-    
+
     @api.get("/users")
     def get_users():
         return {"users": []}
-    
+
     route, path_params = api._find_route("/api/v1/users", "GET")
     assert route is not None
     assert route.path == "/users"
@@ -118,19 +119,19 @@ def test_route_matching_with_root_path():
 def test_route_matching_with_path_params():
     """root_path とパスパラメータの組み合わせ"""
     event = {
-        "httpMethod": "GET", 
+        "httpMethod": "GET",
         "path": "/api/v1/users/123",
         "headers": {},
         "queryStringParameters": None,
         "body": None,
     }
-    
+
     api = API(event, None, "/api/v1")
-    
+
     @api.get("/users/{user_id}")
     def get_user(user_id: str):
         return {"user_id": user_id}
-    
+
     route, path_params = api._find_route("/api/v1/users/123", "GET")
     assert route is not None
     assert route.path == "/users/{user_id}"
@@ -140,11 +141,11 @@ def test_route_matching_with_path_params():
 def test_route_not_matching_wrong_root_path():
     """間違った root_path でのルートマッチング失敗"""
     api = API({}, None, "/api/v1")
-    
+
     @api.get("/users")
     def get_users():
         return {"users": []}
-    
+
     route, path_params = api._find_route("/v2/users", "GET")
     assert route is None
     assert path_params is None
@@ -153,11 +154,11 @@ def test_route_not_matching_wrong_root_path():
 def test_route_matching_exact_root_path():
     """root_path そのものでのルートマッチング"""
     api = API({}, None, "/api/v1")
-    
+
     @api.get("/")
     def get_root():
         return {"message": "API v1"}
-    
+
     route, path_params = api._find_route("/api/v1", "GET")
     assert route is not None
     assert route.path == "/"
@@ -173,13 +174,13 @@ def test_full_request_handling_with_root_path():
         "queryStringParameters": None,
         "body": None,
     }
-    
+
     api = API(event, None, "/api/v1")
-    
+
     @api.get("/health")
     def health_check():
         return {"status": "ok"}
-    
+
     response = api.handle_request()
     assert response["statusCode"] == 200
 
@@ -188,7 +189,7 @@ def test_deeply_nested_root_path():
     """深くネストされた root_path"""
     api = API({}, None, "/api/v1/internal/service")
     assert api.root_path == "/api/v1/internal/service"
-    
+
     assert api._normalize_path("/api/v1/internal/service/health") == "/health"
     assert api._normalize_path("/api/v1/internal/service") == "/"
 
@@ -197,7 +198,7 @@ def test_unicode_in_root_path():
     """Unicode 文字を含む root_path"""
     api = API({}, None, "/api/テスト")
     assert api.root_path == "/api/テスト"
-    
+
     assert api._normalize_path("/api/テスト/users") == "/users"
 
 
@@ -205,7 +206,7 @@ def test_special_characters_in_root_path():
     """特殊文字を含む root_path"""
     api = API({}, None, "/api/v1.0")
     assert api.root_path == "/api/v1.0"
-    
+
     assert api._normalize_path("/api/v1.0/users") == "/users"
 
 
@@ -224,7 +225,7 @@ def test_root_slash_only_path():
 if __name__ == "__main__":
     # 簡単なテストランナー
     import traceback
-    
+
     test_functions = [
         test_empty_root_path,
         test_none_root_path,
@@ -250,10 +251,10 @@ if __name__ == "__main__":
         test_empty_path_normalization,
         test_root_slash_only_path,
     ]
-    
+
     passed = 0
     failed = 0
-    
+
     for test_func in test_functions:
         try:
             test_func()
@@ -263,9 +264,9 @@ if __name__ == "__main__":
             print(f"✗ {test_func.__name__}: {e}")
             traceback.print_exc()
             failed += 1
-    
+
     print(f"\n テスト結果: {passed} 成功, {failed} 失敗")
-    
+
     if failed == 0:
         print("すべてのテストが成功しました!")
     else:

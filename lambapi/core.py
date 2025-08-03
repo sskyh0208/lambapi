@@ -124,29 +124,29 @@ class API(BaseRouterMixin):
         """root_path をバリデーションして正規化"""
         if not root_path:
             return ""
-        
+
         # 先頭にスラッシュがない場合は追加
         if not root_path.startswith("/"):
             root_path = f"/{root_path}"
-        
+
         # 末尾スラッシュを除去
         root_path = root_path.rstrip("/")
-        
+
         # 重複スラッシュを正規化
-        root_path = re.sub(r'/+', '/', root_path)
-        
+        root_path = re.sub(r"/+", "/", root_path)
+
         return root_path
 
     def _normalize_path(self, path: str) -> str:
         """root_path を考慮してパスを正規化"""
         if not self.root_path:
             return path
-        
+
         # 完全一致または / で区切られた場合のみ除去
         if path == self.root_path:
             return "/"
         elif path.startswith(f"{self.root_path}/"):
-            return path[len(self.root_path):]
+            return path[len(self.root_path) :]
         else:
             return path
 
@@ -248,7 +248,7 @@ class API(BaseRouterMixin):
         """マッチするルートを検索"""
         # root_path を考慮してパスを正規化
         normalized_path = self._normalize_path(path)
-        
+
         for route in self.routes:
             path_params = route.match(normalized_path, method)
             if path_params is not None:
