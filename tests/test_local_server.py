@@ -47,7 +47,7 @@ lambda_handler = create_lambda_handler(create_app)
     def test_load_lambda_handler_missing_file(self):
         """存在しないファイルのテスト"""
         # 新しい実装では例外を発生させず、None を返してエラーメッセージを表示
-        with patch('builtins.print'):  # エラーメッセージの出力をモック
+        with patch("builtins.print"):  # エラーメッセージの出力をモック
             handler = load_lambda_handler("nonexistent_app")
             self.assertIsNone(handler)
 
@@ -66,7 +66,7 @@ def some_function():
         try:
             app_name = temp_file[:-3]
             # 新しい実装では例外を発生させず、None を返してエラーメッセージを表示
-            with patch('builtins.print'):  # エラーメッセージの出力をモック
+            with patch("builtins.print"):  # エラーメッセージの出力をモック
                 handler = load_lambda_handler(app_name)
                 self.assertIsNone(handler)
         finally:
