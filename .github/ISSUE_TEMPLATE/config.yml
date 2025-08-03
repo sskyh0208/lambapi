@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 ディスカッション
+    url: https://github.com/sskyh0208/lambapi/discussions
+    about: 質問や機能についての議論
+  - name: 📖 ドキュメント
+    url: https://sskyh0208.github.io/lambapi/
+    about: API リファレンスとガイド
+  - name: 📚 チュートリアル
+    url: https://sskyh0208.github.io/lambapi/tutorial/basic-api/
+    about: 基本的な使い方を学ぶ

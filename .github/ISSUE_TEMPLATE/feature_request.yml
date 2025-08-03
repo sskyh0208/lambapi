@@ -1,0 +1,84 @@
+name: 🚀 機能要求
+description: 新しい機能やエンハンスメントを提案
+title: "[FEATURE] "
+labels: ["enhancement", "needs-triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        👋 機能要求をお聞かせください。新機能の提案をお待ちしています！
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: 機能の概要
+      description: 実装したい機能について詳しく説明してください。
+      placeholder: この機能は...
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: 解決したい課題
+      description: この機能によってどのような問題が解決されますか？
+      placeholder: 現在...という問題があり、この機能によって...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: 提案する解決策
+      description: どのように実装すべきか、具体的なアイデアがあれば教えてください。
+      placeholder: |
+        ```python
+        # 例：API の使用例
+        @app.get("/users", auth_required=True)
+        def get_users():
+            return {"users": []}
+        ```
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案
+      description: 他に考えられるアプローチがあれば教えてください。
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      description: この機能の優先度はどの程度ですか？
+      options:
+        - "🔴 高 - 重要な機能"
+        - "🟡 中 - あると便利"
+        - "🟢 低 - 将来的に検討"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: environment
+    attributes:
+      label: 対象環境
+      description: この機能が必要な環境を選択してください。
+      options:
+        - label: AWS Lambda
+        - label: ローカル開発環境
+        - label: その他のサーバーレス環境
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 追加情報
+      description: その他、参考になる情報があれば教えてください。
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 貢献について
+      options:
+        - label: この機能の実装に協力できます
+        - label: テストやドキュメントの作成に協力できます
+        - label: レビューに協力できます

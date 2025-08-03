@@ -1,0 +1,137 @@
+name: 📋 タスク・改善
+description: 開発タスクや改善点を管理
+title: "[TASK] "
+labels: ["task", "needs-triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        📋 開発タスクや改善点の管理用テンプレートです。
+
+  - type: textarea
+    id: task-description
+    attributes:
+      label: タスクの説明
+      description: 実施するタスクの内容を詳しく説明してください。
+      placeholder: このタスクでは...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: task-type
+    attributes:
+      label: タスクの種類
+      description: このタスクの種類を選択してください。
+      options:
+        - "🚀 新機能開発"
+        - "🐛 バグ修正"
+        - "🔧 リファクタリング"
+        - "📚 ドキュメント"
+        - "🧪 テスト"
+        - "⚡ パフォーマンス改善"
+        - "🔒 セキュリティ"
+        - "🏗️ インフラ・ CI/CD"
+        - "🧹 技術的負債解消"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      description: このタスクの優先度を選択してください。
+      options:
+        - "🔴 緊急 - 即座に対応が必要"
+        - "🟠 高 - 次のリリースまでに対応"
+        - "🟡 中 - 近いうちに対応"
+        - "🟢 低 - 時間があるときに対応"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: 複雑度
+      description: このタスクの複雑度を選択してください。
+      options:
+        - "🟢 簡単 (1-2 日)"
+        - "🟡 普通 (3-5 日)"
+        - "🟠 複雑 (1-2 週間)"
+        - "🔴 非常に複雑 (2 週間以上)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 完了条件
+      description: このタスクが完了したと判断する条件を明確に記載してください。
+      placeholder: |
+        - [ ] 機能 A が実装されている
+        - [ ] テストが書かれている
+        - [ ] ドキュメントが更新されている
+        - [ ] 既存機能に影響がない
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-approach
+    attributes:
+      label: 技術的アプローチ
+      description: 実装方法や技術的な詳細があれば記載してください。
+      placeholder: |
+        ## 実装方針
+        - 新しいクラス `AuthHandler` を作成
+        - JWT トークンの検証ロジックを実装
+        
+        ## 影響範囲
+        - `core.py` の修正
+        - 新しいファイル `auth.py` の追加
+
+  - type: textarea
+    id: sub-tasks
+    attributes:
+      label: サブタスク
+      description: このタスクを細分化したサブタスクがあれば記載してください。
+      placeholder: |
+        - [ ] #123 JWT ライブラリの選定と導入
+        - [ ] #124 認証ミドルウェアの実装
+        - [ ] #125 テストケースの作成
+        - [ ] #126 ドキュメントの更新
+
+  - type: input
+    id: milestone
+    attributes:
+      label: マイルストーン
+      description: このタスクが含まれるマイルストーン（バージョン）を記載してください。
+      placeholder: "例: v0.2.0"
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依存関係
+      description: このタスクが依存する他の issue やタスクがあれば記載してください。
+      placeholder: |
+        ## 前提条件
+        - #123 が完了している必要がある
+        
+        ## ブロッカー
+        - #456 が完了するまで開始できない
+
+  - type: textarea
+    id: additional-notes
+    attributes:
+      label: 追加メモ
+      description: その他、このタスクに関する重要な情報があれば記載してください。
+
+  - type: checkboxes
+    id: task-checklist
+    attributes:
+      label: 開発チェックリスト
+      options:
+        - label: 実装コードが完成している
+        - label: 単体テストが書かれている
+        - label: 既存テストが全て通る
+        - label: ドキュメントが更新されている
+        - label: コードレビューが完了している
