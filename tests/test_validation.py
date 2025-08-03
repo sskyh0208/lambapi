@@ -60,7 +60,7 @@ class TestValidateAndConvert:
         """基本的なデータクラス変換のテスト"""
         data = {"name": "Alice", "age": 30, "active": True}
         result = validate_and_convert(data, SimpleUser)
-        
+
         assert isinstance(result, SimpleUser)
         assert result.name == "Alice"
         assert result.age == 30
@@ -70,7 +70,7 @@ class TestValidateAndConvert:
         """型変換のテスト"""
         data = {"name": "Bob", "age": "25", "active": "true"}
         result = validate_and_convert(data, SimpleUser)
-        
+
         assert isinstance(result, SimpleUser)
         assert result.name == "Bob"
         assert result.age == 25
@@ -80,7 +80,7 @@ class TestValidateAndConvert:
         """デフォルト値のテスト"""
         data = {"name": "Charlie", "age": 35}
         result = validate_and_convert(data, SimpleUser)
-        
+
         assert result.name == "Charlie"
         assert result.age == 35
         assert result.active is True  # デフォルト値
@@ -89,7 +89,7 @@ class TestValidateAndConvert:
         """オプショナルフィールドのテスト"""
         data = {"name": "Diana"}
         result = validate_and_convert(data, UserWithOptional)
-        
+
         assert result.name == "Diana"
         assert result.age is None
         assert result.email is None
@@ -99,7 +99,7 @@ class TestValidateAndConvert:
         """値ありオプショナルフィールドのテスト"""
         data = {"name": "Eve", "age": "28", "email": "eve@example.com"}
         result = validate_and_convert(data, UserWithOptional)
-        
+
         assert result.name == "Eve"
         assert result.age == 28
         assert result.email == "eve@example.com"
@@ -109,7 +109,7 @@ class TestValidateAndConvert:
         """リストフィールドのテスト"""
         data = {"name": "Frank", "tags": ["admin", "user"], "scores": ["100", "95", "88"]}
         result = validate_and_convert(data, UserWithList)
-        
+
         assert result.name == "Frank"
         assert result.tags == ["admin", "user"]
         assert result.scores == [100, 95, 88]
@@ -118,7 +118,7 @@ class TestValidateAndConvert:
         """デフォルトファクトリを使用するリストフィールドのテスト"""
         data = {"name": "Grace", "tags": ["guest"]}
         result = validate_and_convert(data, UserWithList)
-        
+
         assert result.name == "Grace"
         assert result.tags == ["guest"]
         assert result.scores == []  # デフォルトファクトリ
@@ -127,14 +127,10 @@ class TestValidateAndConvert:
         """ネストしたデータクラスのテスト"""
         data = {
             "name": "Henry",
-            "address": {
-                "street": "123 Main St",
-                "city": "Tokyo",
-                "zipcode": "100-0001"
-            }
+            "address": {"street": "123 Main St", "city": "Tokyo", "zipcode": "100-0001"},
         }
         result = validate_and_convert(data, UserWithNestedData)
-        
+
         assert result.name == "Henry"
         assert isinstance(result.address, Address)
         assert result.address.street == "123 Main St"
@@ -148,11 +144,11 @@ class TestValidateAndConvert:
             "name": "Iris",
             "addresses": [
                 {"street": "123 Main St", "city": "Tokyo", "zipcode": "100-0001"},
-                {"street": "456 Side St", "city": "Osaka", "zipcode": "530-0001"}
-            ]
+                {"street": "456 Side St", "city": "Osaka", "zipcode": "530-0001"},
+            ],
         }
         result = validate_and_convert(data, UserWithListOfObjects)
-        
+
         assert result.name == "Iris"
         assert len(result.addresses) == 2
         assert all(isinstance(addr, Address) for addr in result.addresses)
@@ -162,31 +158,33 @@ class TestValidateAndConvert:
     def test_missing_required_field(self):
         """必須フィールド不足のテスト"""
         data = {"age": 30}  # name が不足
-        
+
         with pytest.raises(ValueError, match="必須フィールド 'name' が不足しています"):
             validate_and_convert(data, SimpleUser)
 
     def test_invalid_dataclass(self):
         """非データクラスでのエラーテスト"""
+
         class NotADataclass:
             pass
-        
+
         with pytest.raises(ValueError, match="NotADataclass はデータクラスである必要があります"):
             validate_and_convert({}, NotADataclass)
 
     def test_validation_error_in_constructor(self):
         """コンストラクタでのバリデーションエラーテスト"""
+
         @dataclass
         class StrictUser:
             name: str
             age: int
-            
+
             def __post_init__(self):
                 if self.age < 0:
                     raise ValueError("Age must be positive")
-        
+
         data = {"name": "Test", "age": -1}
-        
+
         with pytest.raises(ValueError, match="バリデーションエラー"):
             validate_and_convert(data, StrictUser)
 
@@ -236,7 +234,7 @@ class TestConvertValue:
         assert _convert_value("yes", bool) is True
         assert _convert_value("on", bool) is True
         assert _convert_value(1, bool) is True
-        
+
         # False の場合
         assert _convert_value("false", bool) is False
         assert _convert_value("0", bool) is False
@@ -253,7 +251,7 @@ class TestConvertValue:
         """辞書変換のテスト"""
         original_dict = {"a": 1, "b": 2}
         assert _convert_value(original_dict, dict) == original_dict
-        
+
         # タプルのリストは辞書に変換される
         result = _convert_value([("a", 1), ("b", 2)], dict)
         expected = {"a": 1, "b": 2}
@@ -262,22 +260,22 @@ class TestConvertValue:
     def test_optional_type_conversion(self):
         """Optional 型変換のテスト"""
         from typing import Optional
-        
+
         # Optional[int] の変換
         assert _convert_value("123", Optional[int]) == 123
         assert _convert_value(None, Optional[int]) is None
-        
+
         # Optional[str] の変換
         assert _convert_value(123, Optional[str]) == "123"
 
     def test_list_type_conversion(self):
         """List 型変換のテスト"""
         from typing import List
-        
+
         # List[int] の変換
         result = _convert_value(["1", "2", "3"], List[int])
         assert result == [1, 2, 3]
-        
+
         # List[str] の変換
         result = _convert_value([1, 2, 3], List[str])
         assert result == ["1", "2", "3"]
@@ -285,7 +283,7 @@ class TestConvertValue:
     def test_list_type_conversion_error(self):
         """List 型変換エラーのテスト"""
         from typing import List
-        
+
         with pytest.raises(ValueError, match="リスト型が期待されましたが"):
             _convert_value("not_a_list", List[int])
 
@@ -293,7 +291,7 @@ class TestConvertValue:
         """データクラス変換のテスト"""
         address_data = {"street": "123 Main St", "city": "Tokyo", "zipcode": "100-0001"}
         result = _convert_value(address_data, Address)
-        
+
         assert isinstance(result, Address)
         assert result.street == "123 Main St"
         assert result.city == "Tokyo"
@@ -316,7 +314,7 @@ class TestConvertToDict:
         """単純なデータクラスの辞書変換テスト"""
         user = SimpleUser(name="Alice", age=30, active=True)
         result = convert_to_dict(user)
-        
+
         expected = {"name": "Alice", "age": 30, "active": True}
         assert result == expected
 
@@ -325,11 +323,11 @@ class TestConvertToDict:
         address = Address(street="123 Main St", city="Tokyo", zipcode="100-0001")
         user = UserWithNestedData(name="Bob", address=address, age=35)
         result = convert_to_dict(user)
-        
+
         expected = {
             "name": "Bob",
             "address": {"street": "123 Main St", "city": "Tokyo", "zipcode": "100-0001"},
-            "age": 35
+            "age": 35,
         }
         assert result == expected
 
@@ -337,38 +335,39 @@ class TestConvertToDict:
         """データクラスのリストの辞書変換テスト"""
         addresses = [
             Address(street="123 Main St", city="Tokyo", zipcode="100-0001"),
-            Address(street="456 Side St", city="Osaka", zipcode="530-0001")
+            Address(street="456 Side St", city="Osaka", zipcode="530-0001"),
         ]
         user = UserWithListOfObjects(name="Charlie", addresses=addresses)
         result = convert_to_dict(user)
-        
+
         expected = {
             "name": "Charlie",
             "addresses": [
                 {"street": "123 Main St", "city": "Tokyo", "zipcode": "100-0001"},
-                {"street": "456 Side St", "city": "Osaka", "zipcode": "530-0001"}
-            ]
+                {"street": "456 Side St", "city": "Osaka", "zipcode": "530-0001"},
+            ],
         }
         assert result == expected
 
     def test_list_with_mixed_types(self):
         """混在型リストの辞書変換テスト"""
+
         @dataclass
         class UserWithMixedList:
             name: str
             items: List[Any]
-        
+
         address = Address(street="123 Main St", city="Tokyo", zipcode="100-0001")
         user = UserWithMixedList(name="Diana", items=[address, "string", 42])
         result = convert_to_dict(user)
-        
+
         expected = {
             "name": "Diana",
             "items": [
                 {"street": "123 Main St", "city": "Tokyo", "zipcode": "100-0001"},
                 "string",
-                42
-            ]
+                42,
+            ],
         }
         assert result == expected
 
@@ -376,10 +375,10 @@ class TestConvertToDict:
         """非データクラスのパススルーテスト"""
         regular_dict = {"name": "Eve", "age": 25}
         assert convert_to_dict(regular_dict) == regular_dict
-        
+
         regular_string = "Hello, World!"
         assert convert_to_dict(regular_string) == regular_string
-        
+
         regular_list = [1, 2, 3]
         assert convert_to_dict(regular_list) == regular_list
 
@@ -390,15 +389,15 @@ class TestCacheOptimization:
     def test_field_info_cache(self):
         """フィールド情報キャッシュのテスト"""
         from lambapi.validation import _FIELD_INFO_CACHE
-        
+
         # キャッシュをクリア
         _FIELD_INFO_CACHE.clear()
-        
+
         # 最初の呼び出し
         data1 = {"name": "Test1", "age": 25}
         validate_and_convert(data1, SimpleUser)
         assert SimpleUser in _FIELD_INFO_CACHE
-        
+
         # 2 回目の呼び出し（キャッシュが使用される）
         data2 = {"name": "Test2", "age": 30}
         result = validate_and_convert(data2, SimpleUser)
@@ -408,15 +407,15 @@ class TestCacheOptimization:
     def test_type_hints_cache(self):
         """型ヒントキャッシュのテスト"""
         from lambapi.validation import _TYPE_HINTS_CACHE
-        
+
         # キャッシュをクリア
         _TYPE_HINTS_CACHE.clear()
-        
+
         # 最初の呼び出し
         data1 = {"name": "Test1", "age": 25}
         validate_and_convert(data1, SimpleUser)
         assert SimpleUser in _TYPE_HINTS_CACHE
-        
+
         # 2 回目の呼び出し（キャッシュが使用される）
         data2 = {"name": "Test2", "age": 30}
         result = validate_and_convert(data2, SimpleUser)
@@ -429,36 +428,38 @@ class TestEdgeCases:
 
     def test_empty_data(self):
         """空データのテスト"""
+
         @dataclass
         class EmptyClass:
             pass
-        
+
         result = validate_and_convert({}, EmptyClass)
         assert isinstance(result, EmptyClass)
 
     def test_complex_nested_structure(self):
         """複雑なネスト構造のテスト"""
+
         @dataclass
         class Department:
             name: str
             users: List[UserWithNestedData]
-        
+
         data = {
             "name": "Engineering",
             "users": [
                 {
                     "name": "Alice",
                     "address": {"street": "123 Main St", "city": "Tokyo", "zipcode": "100-0001"},
-                    "age": 30
+                    "age": 30,
                 },
                 {
                     "name": "Bob",
-                    "address": {"street": "456 Side St", "city": "Osaka", "zipcode": "530-0001"}
+                    "address": {"street": "456 Side St", "city": "Osaka", "zipcode": "530-0001"},
                     # age はデフォルト値を使用
-                }
-            ]
+                },
+            ],
         }
-        
+
         result = validate_and_convert(data, Department)
         assert result.name == "Engineering"
         assert len(result.users) == 2
@@ -469,16 +470,17 @@ class TestEdgeCases:
 
     def test_union_type_handling(self):
         """Union 型の処理テスト"""
+
         @dataclass
         class FlexibleUser:
             name: str
             value: Union[str, int]
-        
+
         # 文字列の場合
         data1 = {"name": "Test1", "value": "string_value"}
         result1 = validate_and_convert(data1, FlexibleUser)
         assert result1.value == "string_value"
-        
+
         # 整数の場合
         data2 = {"name": "Test2", "value": 42}
         result2 = validate_and_convert(data2, FlexibleUser)

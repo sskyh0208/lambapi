@@ -10,7 +10,7 @@ from typing import Dict, Any, Union, Optional
 
 # オプション: orjson による更なる高速化
 try:
-    import orjson  # type: ignore
+    import orjson
 
     HAS_ORJSON = True
 except ImportError:

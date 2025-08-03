@@ -169,15 +169,15 @@ class TestAPI:
         """基本的な CORS 設定のテスト"""
         event = self.create_test_event()
         app = API(event, None)
-        
+
         app.enable_cors()
-        
+
         @app.get("/")
         def hello():
             return {"message": "Hello"}
-        
+
         result = app.handle_request()
-        
+
         assert result["statusCode"] == 200
         assert "Access-Control-Allow-Origin" in result["headers"]
 
@@ -186,15 +186,15 @@ class TestAPI:
         event = self.create_test_event(method="OPTIONS", path="/")
         event["headers"]["Origin"] = "https://example.com"
         app = API(event, None)
-        
+
         app.enable_cors(origins=["https://example.com"])
-        
+
         @app.get("/")
         def hello():
             return {"message": "Hello"}
-        
+
         result = app.handle_request()
-        
+
         assert result["statusCode"] == 200
         assert result["headers"]["Access-Control-Allow-Origin"] == "https://example.com"
         assert "Access-Control-Allow-Methods" in result["headers"]
@@ -259,18 +259,13 @@ class TestAPI:
     def test_mixed_parameters(self):
         """パスパラメータとクエリパラメータの混在テスト"""
         event = self.create_test_event(
-            path="/users/123/posts", 
-            query_params={"limit": "10", "sort": "date"}
+            path="/users/123/posts", query_params={"limit": "10", "sort": "date"}
         )
         app = API(event, None)
 
         @app.get("/users/{user_id}/posts")
         def get_user_posts(user_id: str, limit: int = 5, sort: str = "id"):
-            return {
-                "user_id": user_id,
-                "limit": limit,
-                "sort": sort
-            }
+            return {"user_id": user_id, "limit": limit, "sort": sort}
 
         result = app.handle_request()
 
@@ -283,13 +278,10 @@ class TestAPI:
     def test_request_object_access(self):
         """Request オブジェクトアクセスのテスト"""
         import json
-        
+
         body_data = {"test": "data"}
         event = self.create_test_event(
-            method="POST", 
-            path="/test",
-            query_params={"param": "value"},
-            body=json.dumps(body_data)
+            method="POST", path="/test", query_params={"param": "value"}, body=json.dumps(body_data)
         )
         event["headers"]["Custom-Header"] = "custom-value"
         app = API(event, None)
@@ -302,7 +294,7 @@ class TestAPI:
                 "query_params": request.query_params,
                 "headers": dict(request.headers),
                 "json_data": request.json(),
-                "body": request.body
+                "body": request.body,
             }
 
         result = app.handle_request()
@@ -325,7 +317,7 @@ class TestAPI:
             return Response(
                 {"message": "Custom response"},
                 status_code=201,
-                headers={"X-Custom": "header-value"}
+                headers={"X-Custom": "header-value"},
             )
 
         result = app.handle_request()
@@ -341,7 +333,7 @@ class TestAPI:
             ("POST", "/post-test"),
             ("PUT", "/put-test"),
             ("DELETE", "/delete-test"),
-            ("PATCH", "/patch-test")
+            ("PATCH", "/patch-test"),
         ]
 
         for method, path in methods_and_paths:
@@ -349,22 +341,31 @@ class TestAPI:
             app = API(event, None)
 
             if method == "GET":
+
                 @app.get(path)
                 def handler():
                     return {"method": method}
+
             elif method == "POST":
+
                 @app.post(path)
                 def handler(request):
                     return {"method": method}
+
             elif method == "PUT":
+
                 @app.put(path)
                 def handler(request):
                     return {"method": method}
+
             elif method == "DELETE":
+
                 @app.delete(path)
                 def handler():
                     return {"method": method}
+
             elif method == "PATCH":
+
                 @app.patch(path)
                 def handler(request):
                     return {"method": method}
@@ -380,12 +381,10 @@ class TestAPI:
             ({"num": "-5"}, "int", -5),
             ({"num": "0"}, "int", 0),
             ({"num": "invalid"}, "int", 0),  # fallback to 0
-            
             # float conversion
             ({"num": "3.14"}, "float", 3.14),
             ({"num": "-2.5"}, "float", -2.5),
             ({"num": "invalid"}, "float", 0.0),  # fallback to 0.0
-            
             # bool conversion
             ({"flag": "TRUE"}, "bool", True),
             ({"flag": "false"}, "bool", False),
@@ -399,14 +398,19 @@ class TestAPI:
             app = API(event, None)
 
             if param_type == "int":
+
                 @app.get("/test")
                 def handler(num: int = 999):
                     return {"value": num, "type": type(num).__name__}
+
             elif param_type == "float":
+
                 @app.get("/test")
                 def handler(num: float = 999.0):
                     return {"value": num, "type": type(num).__name__}
+
             elif param_type == "bool":
+
                 @app.get("/test")
                 def handler(flag: bool = False):
                     return {"value": flag, "type": type(flag).__name__}
@@ -484,7 +488,10 @@ class TestAPI:
 
         result = app.handle_request()
         assert result["statusCode"] == 200
-        assert "こんにちは" in result["body"] or "\\u3053\\u3093\\u306b\\u3061\\u306f" in result["body"]
+        assert (
+            "こんにちは" in result["body"]
+            or "\\u3053\\u3093\\u306b\\u3061\\u306f" in result["body"]
+        )
         assert "🚀" in result["body"] or "\\ud83d\\ude80" in result["body"]
 
 

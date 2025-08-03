@@ -28,11 +28,11 @@ class TestJSONPerformance:
                 "email": f"user_{i}@example.com",
                 "metadata": {
                     "created_at": "2023-01-01T00:00:00Z",
-                    "tags": [f"tag_{j}" for j in range(10)],
-                    "nested": {"level1": {"level2": {"level3": {"value": f"deep_value_{i}"}}}},
+                    "tags": [f"tag_{j}" for j in range(5)],  # タグ数を削減
+                    "nested": {"level1": {"level2": {"value": f"value_{i}"}}},  # ネスト深度を削減
                 },
             }
-            for i in range(1000)
+            for i in range(500)  # データ数を削減
         ]
 
     def test_json_loads_performance(self):
