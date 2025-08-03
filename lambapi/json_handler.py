@@ -111,12 +111,12 @@ class JSONHandler:
             return False
 
     @staticmethod
-    def safe_get(data: Dict[str, Any], key: str, default: Any = None) -> Any:
+    def safe_get(data: Union[Dict[str, Any], Any], key: str, default: Any = None) -> Any:
         """
         辞書から安全にキーを取得
 
         Args:
-            data: 検索対象の辞書
+            data: 検索対象の辞書（または任意のオブジェクト）
             key: 取得するキー
             default: デフォルト値
 
