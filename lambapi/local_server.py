@@ -293,7 +293,30 @@ def load_lambda_handler(
         handler = getattr(module, "lambda_handler")
         return handler  # type: ignore
     except ImportError as e:
-        handle_import_error(e, app_path, debug)
+        # ファイルが見つからない場合の詳細表示
+        print(f"❌ アプリケーション読み込みエラー: FileNotFoundError")
+        print(f"📄 ファイル: {original_app_path}")
+        print(f"💬 エラー: アプリケーション '{original_app_path}' が見つかりません")
+
+        if debug:
+            print(f"\n🔍 詳細情報:")
+            print(f"   - 検索パス: {os.getcwd()}")
+            print(f"   - 試行ファイル: {file_path}")
+
+        print(f"\n💡 解決方法:")
+        print(f"   - ファイル '{app_path}.py' が存在することを確認してください")
+        print(f"   - 現在のディレクトリ: {os.getcwd()}")
+        print(f"   - 利用可能な .py ファイル:")
+        try:
+            py_files = [f for f in os.listdir(".") if f.endswith(".py") and not f.startswith("__")]
+            if py_files:
+                for py_file in py_files[:5]:  # 最大 5 つまで表示
+                    print(f"     - {py_file[:-3]}")
+            else:
+                print(f"     (なし)")
+        except PermissionError:
+            print(f"     (ディレクトリの読み取り権限がありません)")
+        
         return None
     except SyntaxError as e:
         handle_syntax_error(e, app_path, debug)
@@ -307,32 +330,6 @@ def load_lambda_handler(
     except Exception as e:
         handle_generic_error(e, app_path, debug)
         return None
-
-    # ファイルが見つからない場合
-    print(f"❌ アプリケーション読み込みエラー: FileNotFoundError")
-    print(f"📄 ファイル: {original_app_path}")
-    print(f"💬 エラー: アプリケーション '{original_app_path}' が見つかりません")
-
-    if debug:
-        print(f"\n🔍 詳細情報:")
-        print(f"   - 検索パス: {os.getcwd()}")
-        print(f"   - 試行ファイル: {file_path}")
-
-    print(f"\n💡 解決方法:")
-    print(f"   - ファイル '{app_path}.py' が存在することを確認してください")
-    print(f"   - 現在のディレクトリ: {os.getcwd()}")
-    print(f"   - 利用可能な .py ファイル:")
-    try:
-        py_files = [f for f in os.listdir(".") if f.endswith(".py") and not f.startswith("__")]
-        if py_files:
-            for py_file in py_files[:5]:  # 最大 5 つまで表示
-                print(f"     - {py_file[:-3]}")
-        else:
-            print(f"     (なし)")
-    except PermissionError:
-        print(f"     (ディレクトリの読み取り権限がありません)")
-
-    return None
 
 
 def start_server(
