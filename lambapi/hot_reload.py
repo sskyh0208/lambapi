@@ -7,6 +7,7 @@ import os
 import sys
 import signal
 import threading
+# nosec B404
 import subprocess
 from typing import List, Set, Optional, Union, Any
 from .file_watcher import FileWatcher, PollingWatcher, get_watch_paths, HAS_WATCHDOG
@@ -75,6 +76,7 @@ class HotReloadServer:
             if self.verbose:
                 print(f"🔧 サーバー起動コマンド: {' '.join(cmd)}")
 
+            # nosec B603
             self.server_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE if not self.verbose else None,
