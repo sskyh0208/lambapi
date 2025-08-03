@@ -457,6 +457,23 @@ def main() -> None:
     serve_parser.add_argument("--port", type=int, default=8000, help="ポート番号")
     serve_parser.add_argument("--debug", action="store_true", help="詳細なデバッグ情報を表示")
 
+    # ホットリロード関連オプション
+    reload_group = serve_parser.add_mutually_exclusive_group()
+    reload_group.add_argument(
+        "--reload", action="store_true", default=True, help="ホットリロードを有効化 (デフォルト)"
+    )
+    reload_group.add_argument(
+        "--no-reload", action="store_false", dest="reload", help="ホットリロードを無効化"
+    )
+
+    serve_parser.add_argument("--watch-dir", action="append", help="監視するディレクトリを追加")
+    serve_parser.add_argument("--watch-ext", action="append", help="監視するファイル拡張子を追加")
+    serve_parser.add_argument("--ignore", action="append", help="除外するパターンを追加")
+    serve_parser.add_argument(
+        "--reload-delay", type=float, default=1.0, help="リロード間隔の最小秒数 (デフォルト: 1.0)"
+    )
+    serve_parser.add_argument("--verbose", action="store_true", help="詳細なリロードログを表示")
+
     # create コマンド
     create_parser = subparsers.add_parser("create", help="新しいプロジェクトを作成")
     create_parser.add_argument("project_name", help="プロジェクト名")
@@ -468,9 +485,48 @@ def main() -> None:
 
     if args.command == "serve":
         # ローカルサーバー起動
-        debug_args = ["--debug"] if args.debug else []
-        sys.argv = ["lambapi", args.app, "--host", args.host, "--port", str(args.port)] + debug_args
-        server_main()
+        if args.reload:
+            # ホットリロード機能付きサーバー
+            from .hot_reload import serve_with_reload
+
+            # ファイル拡張子の処理
+            watch_extensions = None
+            if args.watch_ext:
+                watch_extensions = set()
+                for ext in args.watch_ext:
+                    if not ext.startswith("."):
+                        ext = "." + ext
+                    watch_extensions.add(ext)
+
+            # 除外パターンの処理
+            ignore_patterns = None
+            if args.ignore:
+                ignore_patterns = set(args.ignore)
+
+            serve_with_reload(
+                app_path=args.app,
+                host=args.host,
+                port=args.port,
+                debug=args.debug,
+                reload=args.reload,
+                watch_dirs=args.watch_dir,
+                watch_extensions=watch_extensions,
+                ignore_patterns=ignore_patterns,
+                reload_delay=args.reload_delay,
+                verbose=args.verbose,
+            )
+        else:
+            # 従来のサーバー（ホットリロードなし）
+            debug_args = ["--debug"] if args.debug else []
+            sys.argv = [
+                "lambapi",
+                args.app,
+                "--host",
+                args.host,
+                "--port",
+                str(args.port),
+            ] + debug_args
+            server_main()
     elif args.command == "create":
         # プロジェクト作成
         create_project_with_args(args.project_name, args.template)

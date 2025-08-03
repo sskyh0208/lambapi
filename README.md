@@ -330,6 +330,12 @@ lambapi serve app --host 0.0.0.0 --port 3000
 
 # デバッグモードで起動（詳細なエラー情報を表示）
 lambapi serve app --debug
+
+# ホットリロード機能（デフォルトで有効）
+lambapi serve app                    # ファイル変更を自動検知してサーバー再起動
+lambapi serve app --no-reload        # ホットリロード無効
+lambapi serve app --watch-ext json   # JSON ファイルも監視対象に追加
+lambapi serve app --verbose          # 詳細なリロードログを表示
 ```
 
 ### Python から直接使用
@@ -352,6 +358,7 @@ serve('my_app', host='0.0.0.0', port=3000)
 - ✅ **Lambda 互換**: 実際の Lambda 環境と同じイベント・コンテキスト形式
 - ✅ **詳細なエラー表示**: エラー種別に応じたヒントと解決方法を表示
 - ✅ **エラーハンドリング**: 例外の適切な HTTP レスポンス変換
+- 🔥 **ホットリロード**: ファイル変更を自動検知してサーバー再起動
 
 ### プロジェクトテンプレート
 
@@ -411,6 +418,92 @@ curl -X DELETE http://localhost:8000/users/1
 | リクエストボディ | ✅ JSON | ✅ JSON |
 | レスポンス形式 | ✅ 同一 | ✅ 同一 |
 | エラーハンドリング | ✅ 同一 | ✅ 同一 |
+
+### ホットリロード機能
+
+開発効率を向上させるため、ファイル変更を自動的に検知してサーバーを再起動するホットリロード機能を提供します。
+
+#### 基本的な使用方法
+
+```bash
+# デフォルトでホットリロード有効
+lambapi serve app
+
+# ホットリロードを無効化
+lambapi serve app --no-reload
+
+# 詳細なリロードログを表示
+lambapi serve app --verbose
+```
+
+#### 監視対象のカスタマイズ
+
+```bash
+# 特定のディレクトリを監視対象に追加
+lambapi serve app --watch-dir ./src --watch-dir ./lib
+
+# 特定のファイル拡張子を監視
+lambapi serve app --watch-ext .py --watch-ext .json --watch-ext .yaml
+
+# 特定のパターンを除外
+lambapi serve app --ignore node_modules --ignore .git
+
+# リロード間隔を調整（デフォルト: 1.0 秒）
+lambapi serve app --reload-delay 0.5
+```
+
+#### 自動監視対象
+
+デフォルトでは以下が監視対象になります：
+
+- **ファイル拡張子**: `.py` ファイル
+- **監視ディレクトリ**: アプリケーションファイルのディレクトリとカレントディレクトリ
+- **除外パターン**: `__pycache__`, `.git`, `.mypy_cache`, `.pytest_cache`
+
+#### 高度な機能
+
+```bash
+# 複数の設定を組み合わせ
+lambapi serve app \
+  --watch-dir ./models \
+  --watch-dir ./utils \
+  --watch-ext .py \
+  --watch-ext .json \
+  --ignore __pycache__ \
+  --ignore .venv \
+  --reload-delay 0.5 \
+  --verbose
+
+# 本番環境用（リロード無効）
+lambapi serve app --no-reload --host 0.0.0.0 --port 8080
+```
+
+#### 依存関係
+
+- **watchdog** (推奨): より効率的なファイル監視
+- **ポーリング**: watchdog がない場合の自動フォールバック
+
+```bash
+# より効率的な監視のため watchdog をインストール
+pip install lambapi[dev]
+# または
+pip install watchdog
+```
+
+#### 実行例
+
+```bash
+# 基本的なホットリロード
+$ lambapi serve my_app
+👀 ホットリロード機能が有効です (拡張子: .py)
+🚀 lambapi ローカルサーバーを起動しました
+   URL: http://localhost:8000
+
+# ファイルを変更すると...
+🔄 ファイル変更を検知: /path/to/my_app.py
+🔄 サーバーを再起動中...
+✅ サーバー再起動完了
+```
 
 ### トラブルシューティング
 
