@@ -75,7 +75,7 @@ class HotReloadServer:
             if self.verbose:
                 print(f"🔧 サーバー起動コマンド: {' '.join(cmd)}")
 
-            self.server_process = subprocess.Popen( # nosec B603
+            self.server_process = subprocess.Popen(  # nosec B603
                 cmd,
                 stdout=subprocess.PIPE if not self.verbose else None,
                 stderr=subprocess.STDOUT if not self.verbose else None,
