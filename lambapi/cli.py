@@ -100,7 +100,8 @@ if __name__ == "__main__":
     
     context = type('Context', (), {'aws_request_id': 'test-123'})()
     result = lambda_handler(test_event, context)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    from .json_handler import JSONHandler
+    print(JSONHandler.dumps(result, ensure_ascii=False, indent=2))
 '''
 
     # requirements.txt

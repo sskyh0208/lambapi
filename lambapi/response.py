@@ -4,8 +4,9 @@ Response クラス
 Lambda 用のレスポンスオブジェクトを提供します。
 """
 
-import json
 from typing import Dict, Any, Optional
+
+from .json_handler import JSONHandler
 
 
 class Response:
@@ -22,7 +23,7 @@ class Response:
         """Lambda 用のレスポンス形式に変換"""
         body = self.content
         if isinstance(body, (dict, list)):
-            body = json.dumps(body, ensure_ascii=False)
+            body = JSONHandler.dumps(body, ensure_ascii=False)
             self.headers.setdefault("Content-Type", "application/json")
         elif body is None:
             body = ""
