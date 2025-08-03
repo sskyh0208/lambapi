@@ -4,9 +4,10 @@ Request クラス
 Lambda イベントからモダンな Request オブジェクトを提供します。
 """
 
-import json
 from typing import Dict, Any, Optional
 from urllib.parse import unquote
+
+from .json_handler import JSONHandler
 
 
 class Request:
@@ -49,13 +50,7 @@ class Request:
     def json(self) -> Dict[str, Any]:
         """JSON ボディをパース（最適化版）"""
         if self._json is None:
-            if not self.body:
-                self._json = {}
-            else:
-                try:
-                    self._json = json.loads(self.body)
-                except json.JSONDecodeError:
-                    self._json = {}
+            self._json = JSONHandler.loads(self.body)
         return self._json
 
     @property

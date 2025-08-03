@@ -35,7 +35,7 @@ class TestAPI:
         result = app.handle_request()
 
         assert result["statusCode"] == 200
-        assert '"message": "Hello World"' in result["body"]
+        assert '"message":"Hello World"' in result["body"]
 
     def test_path_parameters(self):
         """パスパラメータのテスト"""
@@ -49,7 +49,7 @@ class TestAPI:
         result = app.handle_request()
 
         assert result["statusCode"] == 200
-        assert '"user_id": "123"' in result["body"]
+        assert '"user_id":"123"' in result["body"]
 
     def test_query_parameters(self):
         """クエリパラメータのテスト"""
@@ -64,8 +64,8 @@ class TestAPI:
 
         assert result["statusCode"] == 200
         body = result["body"]
-        assert '"query": "python"' in body
-        assert '"limit": 10' in body
+        assert '"query":"python"' in body
+        assert '"limit":10' in body
 
     def test_query_parameters_default_values(self):
         """クエリパラメータのデフォルト値テスト"""
@@ -80,8 +80,8 @@ class TestAPI:
 
         assert result["statusCode"] == 200
         body = result["body"]
-        assert '"query": "default"' in body
-        assert '"limit": 5' in body
+        assert '"query":"default"' in body
+        assert '"limit":5' in body
 
     def test_type_conversion(self):
         """型変換のテスト"""
@@ -107,9 +107,9 @@ class TestAPI:
 
         assert result["statusCode"] == 200
         body = result["body"]
-        assert '"limit": 25' in body
-        assert '"offset": 10' in body
-        assert '"active": true' in body
+        assert '"limit":25' in body
+        assert '"offset":10' in body
+        assert '"active":true' in body
 
     def test_post_request(self):
         """POST リクエストのテスト"""
@@ -127,8 +127,8 @@ class TestAPI:
         result = app.handle_request()
 
         assert result["statusCode"] == 201
-        assert '"message": "Created"' in result["body"]
-        assert '"name": "John"' in result["body"]
+        assert '"message":"Created"' in result["body"]
+        assert '"name":"John"' in result["body"]
 
     def test_not_found(self):
         """404 エラーのテスト"""
@@ -142,7 +142,7 @@ class TestAPI:
         result = app.handle_request()
 
         assert result["statusCode"] == 404
-        assert '"error": "Not Found"' in result["body"]
+        assert '"error":"Not Found"' in result["body"]
 
     def test_middleware(self):
         """ミドルウェアのテスト"""

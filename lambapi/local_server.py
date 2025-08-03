@@ -3,7 +3,6 @@ lambapi ローカル開発サーバー
 pip install lambapi 後に使用可能なローカル開発ツール
 """
 
-import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import sys
@@ -12,6 +11,8 @@ import importlib.util
 import argparse
 import traceback
 from typing import Any, Dict, Optional, Callable, Tuple
+
+from .json_handler import JSONHandler
 
 
 class LambdaHTTPHandler(BaseHTTPRequestHandler):
@@ -140,7 +141,7 @@ class LambdaHTTPHandler(BaseHTTPRequestHandler):
             if isinstance(body, str):
                 self.wfile.write(body.encode("utf-8"))
             else:
-                self.wfile.write(json.dumps(body).encode("utf-8"))
+                self.wfile.write(JSONHandler.dumps(body).encode("utf-8"))
 
             # ログ出力
             print(f"{method} {path} -> {status_code}")
@@ -152,7 +153,7 @@ class LambdaHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             error_response = {"error": "Internal Server Error", "message": str(e)}
-            self.wfile.write(json.dumps(error_response).encode("utf-8"))
+            self.wfile.write(JSONHandler.dumps(error_response).encode("utf-8"))
 
     def log_message(self, format: str, *args: Any) -> None:
         """ログメッセージの出力をカスタマイズ"""
