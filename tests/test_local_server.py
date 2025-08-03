@@ -46,8 +46,10 @@ lambda_handler = create_lambda_handler(create_app)
 
     def test_load_lambda_handler_missing_file(self):
         """存在しないファイルのテスト"""
-        with self.assertRaises(ImportError):
-            load_lambda_handler("nonexistent_app")
+        # 新しい実装では例外を発生させず、None を返してエラーメッセージを表示
+        with patch('builtins.print'):  # エラーメッセージの出力をモック
+            handler = load_lambda_handler("nonexistent_app")
+            self.assertIsNone(handler)
 
     def test_load_lambda_handler_missing_handler(self):
         """lambda_handler が存在しないファイルのテスト"""
@@ -63,8 +65,10 @@ def some_function():
 
         try:
             app_name = temp_file[:-3]
-            with self.assertRaises(AttributeError):
-                load_lambda_handler(app_name)
+            # 新しい実装では例外を発生させず、None を返してエラーメッセージを表示
+            with patch('builtins.print'):  # エラーメッセージの出力をモック
+                handler = load_lambda_handler(app_name)
+                self.assertIsNone(handler)
         finally:
             os.unlink(temp_file)
 

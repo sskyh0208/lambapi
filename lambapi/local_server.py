@@ -124,7 +124,9 @@ class LambdaHTTPHandler(BaseHTTPRequestHandler):
             self.send_header(
                 "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS"
             )
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            self.send_header(
+                "Access-Control-Allow-Headers", "Content-Type, Authorization"
+            )
 
             # カスタムヘッダーの追加
             for header_name, header_value in headers.items():
@@ -165,27 +167,27 @@ def handle_import_error(e: ImportError, app_path: str, debug: bool = False) -> N
     print(f"❌ アプリケーション読み込みエラー: ImportError")
     print(f"📄 ファイル: {app_path}.py")
     print(f"💬 エラー: {str(e)}")
-    
+
     if debug:
         print(f"\n🔍 詳細情報:")
         traceback.print_exc()
-    
+
     print(f"\n💡 解決方法:")
     print(f"   - ファイル '{app_path}.py' が存在することを確認してください")
     print(f"   - 必要な依存関係がインストールされていることを確認してください")
     print(f"   - インポートパスが正しいことを確認してください")
-    
+
 
 def handle_syntax_error(e: SyntaxError, app_path: str, debug: bool = False) -> None:
     """SyntaxError の詳細ハンドリング"""
     print(f"❌ アプリケーション読み込みエラー: SyntaxError")
     print(f"📄 ファイル: {app_path}.py:{e.lineno if e.lineno else '?'}")
     print(f"💬 エラー: {str(e)}")
-    
+
     if debug:
         print(f"\n🔍 詳細情報:")
         traceback.print_exc()
-    
+
     print(f"\n💡 解決方法:")
     print(f"   - Python 構文をチェックしてください")
     print(f"   - インデントが正しいことを確認してください")
@@ -193,36 +195,41 @@ def handle_syntax_error(e: SyntaxError, app_path: str, debug: bool = False) -> N
     if e.lineno:
         print(f"   - {e.lineno} 行目付近を確認してください")
 
-def handle_attribute_error(e: AttributeError, app_path: str, debug: bool = False) -> None:
+
+def handle_attribute_error(
+    e: AttributeError, app_path: str, debug: bool = False
+) -> None:
     """AttributeError の詳細ハンドリング"""
     print(f"❌ アプリケーション読み込みエラー: AttributeError")
     print(f"📄 ファイル: {app_path}.py")
     print(f"💬 エラー: {str(e)}")
-    
+
     if debug:
         print(f"\n🔍 詳細情報:")
         traceback.print_exc()
-    
+
     print(f"\n💡 解決方法:")
     print(f"   - lambda_handler 関数が定義されていることを確認してください")
     print(f"   - create_lambda_handler() を正しく呼び出していることを確認してください")
     print(f"   - 例: lambda_handler = create_lambda_handler(create_app)")
-    
+
+
 def handle_name_error(e: NameError, app_path: str, debug: bool = False) -> None:
     """NameError の詳細ハンドリング"""
     print(f"❌ アプリケーション読み込みエラー: NameError")
     print(f"📄 ファイル: {app_path}.py")
     print(f"💬 エラー: {str(e)}")
-    
+
     if debug:
         print(f"\n🔍 詳細情報:")
         traceback.print_exc()
-    
+
     print(f"\n💡 解決方法:")
     print(f"   - 変数名のスペルを確認してください")
     print(f"   - 変数が定義されているかチェックしてください")
     print(f"   - スコープが正しいか確認してください")
     print(f"   - 必要なインポートが行われているか確認してください")
+
 
 def handle_generic_error(e: Exception, app_path: str, debug: bool = False) -> None:
     """その他のエラーの詳細ハンドリング"""
@@ -230,17 +237,20 @@ def handle_generic_error(e: Exception, app_path: str, debug: bool = False) -> No
     print(f"❌ アプリケーション読み込みエラー: {error_type}")
     print(f"📄 ファイル: {app_path}.py")
     print(f"💬 エラー: {str(e)}")
-    
+
     if debug:
         print(f"\n🔍 詳細情報:")
         traceback.print_exc()
-    
+
     print(f"\n💡 解決方法:")
     print(f"   - アプリケーションコードを確認してください")
     print(f"   - --debug フラグを使用して詳細情報を確認してください")
     print(f"   - 例: lambapi serve {app_path} --debug")
 
-def load_lambda_handler(app_path: str, debug: bool = False) -> Optional[Callable[[Dict[str, Any], Any], Dict[str, Any]]]:
+
+def load_lambda_handler(
+    app_path: str, debug: bool = False
+) -> Optional[Callable[[Dict[str, Any], Any], Dict[str, Any]]]:
     """アプリケーションファイルから lambda_handler を動的にロード"""
     original_app_path = app_path
     if app_path.endswith(".py"):
@@ -306,18 +316,20 @@ def load_lambda_handler(app_path: str, debug: bool = False) -> Optional[Callable
     print(f"❌ アプリケーション読み込みエラー: FileNotFoundError")
     print(f"📄 ファイル: {original_app_path}")
     print(f"💬 エラー: アプリケーション '{original_app_path}' が見つかりません")
-    
+
     if debug:
         print(f"\n🔍 詳細情報:")
         print(f"   - 検索パス: {os.getcwd()}")
         print(f"   - 試行ファイル: {file_path}")
-    
+
     print(f"\n💡 解決方法:")
     print(f"   - ファイル '{app_path}.py' が存在することを確認してください")
     print(f"   - 現在のディレクトリ: {os.getcwd()}")
     print(f"   - 利用可能な .py ファイル:")
     try:
-        py_files = [f for f in os.listdir('.') if f.endswith('.py') and not f.startswith('__')]
+        py_files = [
+            f for f in os.listdir(".") if f.endswith(".py") and not f.startswith("__")
+        ]
         if py_files:
             for py_file in py_files[:5]:  # 最大 5 つまで表示
                 print(f"     - {py_file[:-3]}")
@@ -325,7 +337,7 @@ def load_lambda_handler(app_path: str, debug: bool = False) -> Optional[Callable
             print(f"     (なし)")
     except PermissionError:
         print(f"     (ディレクトリの読み取り権限がありません)")
-    
+
     return None
 
 
@@ -383,7 +395,9 @@ def start_server(
 """
             )
             sys.exit(1)
-        elif e.errno == 10048 or "Only one usage of each socket address" in str(e):  # Windows
+        elif e.errno == 10048 or "Only one usage of each socket address" in str(
+            e
+        ):  # Windows
             print(f"❌ エラー: ポート {port} は既に使用されています")
             print(
                 f"""
@@ -401,7 +415,9 @@ def start_server(
             sys.exit(1)
 
     try:
-        httpd = ServerWithHandler(server_address, handler_factory(lambda_handler), lambda_handler)
+        httpd = ServerWithHandler(
+            server_address, handler_factory(lambda_handler), lambda_handler
+        )
     except OSError as e:
         if e.errno == 48 or "Address already in use" in str(e):  # macOS/Linux
             print(f"❌ エラー: ポート {port} は既に使用されています")
@@ -419,7 +435,9 @@ def start_server(
 """
             )
             sys.exit(1)
-        elif e.errno == 10048 or "Only one usage of each socket address" in str(e):  # Windows
+        elif e.errno == 10048 or "Only one usage of each socket address" in str(
+            e
+        ):  # Windows
             print(f"❌ エラー: ポート {port} は既に使用されています")
             print(
                 f"""
@@ -465,10 +483,10 @@ def main() -> None:
     parser.add_argument(
         "--host", default="localhost", help="バインドするホスト (デフォルト: localhost)"
     )
-    parser.add_argument("--port", type=int, default=8000, help="ポート番号 (デフォルト: 8000)")
     parser.add_argument(
-        "--debug", action="store_true", help="詳細なデバッグ情報を表示"
+        "--port", type=int, default=8000, help="ポート番号 (デフォルト: 8000)"
     )
+    parser.add_argument("--debug", action="store_true", help="詳細なデバッグ情報を表示")
 
     args = parser.parse_args()
 
@@ -478,7 +496,8 @@ def main() -> None:
     else:
         print(f"\n🚨 アプリケーションの読み込みに失敗しました")
         print(f"\n📖 サンプルコード:")
-        print(f"""
+        print(
+            f"""
    # {args.app}.py
    from lambapi import API, create_lambda_handler
    
@@ -492,7 +511,8 @@ def main() -> None:
        return app
    
    lambda_handler = create_lambda_handler(create_app)
-""")
+"""
+        )
         sys.exit(1)
 
 
