@@ -282,6 +282,5 @@ def get_user(user_id: str):
 次は以下のトピックを学びましょう：
 
 - [基本概念](concepts.md) - lambapi の設計思想とアーキテクチャ
-- [パラメータハンドリング](../tutorial/parameters.md) - より詳細なパラメータ処理
+- [基本的な API](../tutorial/basic-api.md) - 実践的な CRUD API の構築
 - [CORS 設定](../tutorial/cors.md) - フロントエンドとの連携
-- [エラーハンドリング](../tutorial/error-handling.md) - 本格的なエラー処理

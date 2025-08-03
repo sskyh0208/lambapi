@@ -351,7 +351,7 @@ def get_items(limit: int = 10, offset: int = 0, active: bool = True):
 |--------|----------|
 | `str` | そのまま文字列 |
 | `int` | `int()` で変換、失敗時は 0 |
-| `float` | `float()` で変換 |
+| `float` | `float()` で変換、失敗時は 0.0 |
 | `bool` | `'true'`, `'1'`, `'yes'`, `'on'` を True として認識 |
 
 ### Request オブジェクトの使用
