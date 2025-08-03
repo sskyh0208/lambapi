@@ -292,7 +292,7 @@ def load_lambda_handler(
             raise AttributeError(f"{app_path} に lambda_handler が見つかりません")
         handler = getattr(module, "lambda_handler")
         return handler  # type: ignore
-    except ImportError as e:
+    except ImportError:
         # ファイルが見つからない場合の詳細表示
         print(f"❌ アプリケーション読み込みエラー: FileNotFoundError")
         print(f"📄 ファイル: {original_app_path}")
@@ -316,7 +316,7 @@ def load_lambda_handler(
                 print(f"     (なし)")
         except PermissionError:
             print(f"     (ディレクトリの読み取り権限がありません)")
-        
+
         return None
     except SyntaxError as e:
         handle_syntax_error(e, app_path, debug)
