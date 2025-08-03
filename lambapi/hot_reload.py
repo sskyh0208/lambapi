@@ -7,7 +7,7 @@ import os
 import sys
 import signal
 import threading
-import subprocess # nosec B404
+import subprocess  # nosec B404
 from typing import List, Set, Optional, Union, Any
 from .file_watcher import FileWatcher, PollingWatcher, get_watch_paths, HAS_WATCHDOG
 
