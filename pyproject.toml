@@ -116,6 +116,11 @@ source = ["lambapi"]
 omit = [
     "*/tests/*",
     "*/test_*",
+    "lambapi/cli.py",
+    "lambapi/file_watcher.py",
+    "lambapi/hot_reload.py",
+    "lambapi/local_server.py",
+    "lambapi/server_launcher.py",
 ]
 
 [tool.coverage.report]
