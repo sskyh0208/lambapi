@@ -240,9 +240,11 @@ class HotReloadServer:
                         if return_code != 0 and self.is_running:
                             if self.restart_count < self.max_restart_attempts:
                                 if self.verbose:
-                                    print(
-                                        f"🔄 サーバープロセスの異常終了を検知、再起動を試行... ({self.restart_count + 1}/{self.max_restart_attempts})"
+                                    restart_msg = (
+                                        f"🔄 サーバー再起動中... "
+                                        f"({self.restart_count + 1}/{self.max_restart_attempts})"
                                     )
+                                    print(restart_msg)
                                 self._restart_server()
                             else:
                                 print(
