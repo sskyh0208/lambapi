@@ -2,9 +2,9 @@
 
 **モダンな AWS Lambda 用 API フレームワーク**
 
-![Python](https://img.shields.io/badge/python-3.7+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![Version](https://img.shields.io/badge/version-0.1.3-green.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ---
 

@@ -507,10 +507,9 @@ def create_users_batch(request):
 
 このチュートリアルで基本的な CRUD API を作成しました。次は以下のトピックに進みましょう：
 
-- [パラメータハンドリング](parameters.md) - より詳細なパラメータ処理
-- [リクエスト・レスポンス](request-response.md) - 高度なリクエスト/レスポンス処理
 - [CORS 設定](cors.md) - フロントエンドとの連携
-- [エラーハンドリング](error-handling.md) - 本格的なエラー処理
+- [API リファレンス](../api/api.md) - すべてのクラスとメソッドの詳細
+- [デプロイメント](../guides/deployment.md) - 本番環境での運用
 
 ## まとめ
 
