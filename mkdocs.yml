@@ -1,0 +1,105 @@
+site_name: lambapi - モダンな AWS Lambda 用 API フレームワーク
+site_description: 軽量で直感的な AWS Lambda 用 API フレームワーク
+site_author: lambapi Team
+site_url: https://sskyh0208.github.io/lambapi/
+
+repo_name: lambapi
+repo_url: https://github.com/sskyh0208/lambapi
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: ja
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: ダークモードに切り替え
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: ライトモードに切り替え
+  features:
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - toc.follow
+    - content.code.annotate
+    - content.code.copy
+    - content.action.edit
+    - content.action.view
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+
+plugins:
+  - search:
+      lang: ja
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+
+nav:
+  - ホーム: index.md
+  - はじめに:
+    - クイックスタート: getting-started/quickstart.md
+    - インストール: getting-started/installation.md
+    - 基本概念: getting-started/concepts.md
+    - ローカル開発: getting-started/local-development.md
+  - チュートリアル:
+    - 基本的な API: tutorial/basic-api.md
+    - CORS 設定: tutorial/cors.md
+  - API リファレンス:
+    - API: api/api.md
+  - 実践ガイド:
+    - デプロイメント: guides/deployment.md
+  - 例とサンプル:
+    - 基本例: examples/basic.md
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sskyh0208/lambapi
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/lambapi/
+
+extra_css:
+  - stylesheets/extra.css
+
+copyright: Copyright &copy; 2025 lambapi Team

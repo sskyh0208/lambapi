@@ -1,0 +1,5 @@
+lambapi
+# 大規模アプリケーション用の依存関係例
+boto3>=1.26.137
+requests>=2.28.0
+python-dateutil>=2.8.0

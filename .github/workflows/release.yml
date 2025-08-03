@@ -1,0 +1,256 @@
+name: リリース作成
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'バージョンアップの種類'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_version:
+        description: 'カスタムバージョン (例: 1.2.3) - 指定した場合は version_type を無視'
+        required: false
+        type: string
+      draft:
+        description: 'ドラフトリリースとして作成'
+        required: false
+        default: false
+        type: boolean
+      prerelease:
+        description: 'プレリリースとして作成'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  prepare-release:
+    name: リリース準備
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+      
+    steps:
+      - name: リポジトリチェックアウト
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Python 環境セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 現在のバージョン取得
+        id: current_version
+        run: |
+          current=$(python -c "import lambapi; print(lambapi.__version__)")
+          echo "current_version=$current" >> $GITHUB_OUTPUT
+          echo "現在のバージョン: $current"
+
+      - name: 新しいバージョン計算
+        id: version
+        run: |
+          current_version="${{ steps.current_version.outputs.current_version }}"
+          version_type="${{ inputs.version_type }}"
+          custom_version="${{ inputs.custom_version }}"
+          
+          if [ -n "$custom_version" ]; then
+            new_version="$custom_version"
+            echo "カスタムバージョンを使用: $new_version"
+          else
+            # セマンティックバージョニング計算
+            IFS='.' read -ra VERSION_PARTS <<< "$current_version"
+            major=${VERSION_PARTS[0]}
+            minor=${VERSION_PARTS[1]}
+            patch=${VERSION_PARTS[2]}
+            
+            case $version_type in
+              major)
+                major=$((major + 1))
+                minor=0
+                patch=0
+                ;;
+              minor)
+                minor=$((minor + 1))
+                patch=0
+                ;;
+              patch)
+                patch=$((patch + 1))
+                ;;
+            esac
+            
+            new_version="$major.$minor.$patch"
+            echo "$version_type バージョンアップ: $current_version → $new_version"
+          fi
+          
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          echo "新しいバージョン: $new_version"
+
+      - name: バージョン更新
+        run: |
+          new_version="${{ steps.version.outputs.new_version }}"
+          
+          # __init__.py のバージョン更新
+          sed -i "s/__version__ = \".*\"/__version__ = \"$new_version\"/" lambapi/__init__.py
+          
+          # pyproject.toml のバージョン更新
+          sed -i "s/version = \".*\"/version = \"$new_version\"/" pyproject.toml
+          
+          echo "バージョンを $new_version に更新しました"
+
+      - name: 変更ログ生成
+        id: changelog
+        run: |
+          new_version="${{ steps.version.outputs.new_version }}"
+          
+          # 最新のタグを取得
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$latest_tag" ]; then
+            echo "初回リリース: 全てのコミットを含める"
+            commits=$(git log --pretty=format:"- %s (%h)" --reverse)
+          else
+            echo "前回のタグ: $latest_tag"
+            commits=$(git log ${latest_tag}..HEAD --pretty=format:"- %s (%h)" --reverse)
+          fi
+          
+          # 変更ログを生成
+          changelog_file=$(mktemp)
+          echo "# リリース v$new_version" > $changelog_file
+          echo "" >> $changelog_file
+          echo "## 変更内容" >> $changelog_file
+          echo "" >> $changelog_file
+          
+          if [ -n "$commits" ]; then
+            echo "$commits" >> $changelog_file
+          else
+            echo "- 変更なし" >> $changelog_file
+          fi
+          
+          echo "" >> $changelog_file
+          echo "## インストール" >> $changelog_file
+          echo "" >> $changelog_file
+          echo "\`\`\`bash" >> $changelog_file
+          echo "pip install lambapi==$new_version" >> $changelog_file
+          echo "\`\`\`" >> $changelog_file
+          echo "" >> $changelog_file
+          echo "## ドキュメント" >> $changelog_file
+          echo "" >> $changelog_file
+          echo "📚 [公式ドキュメント](https://sskyh0208.github.io/lambapi/)" >> $changelog_file
+          
+          # GitHub アクションの出力用にエスケープ
+          changelog_content=$(cat $changelog_file)
+          {
+            echo 'changelog<<EOF'
+            echo "$changelog_content"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+          
+          echo "変更ログを生成しました"
+
+      - name: バージョン更新をコミット
+        run: |
+          new_version="${{ steps.version.outputs.new_version }}"
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git add lambapi/__init__.py pyproject.toml
+          git commit -m "chore: バージョンを v$new_version に更新" || exit 0
+          git push origin main
+          
+          echo "バージョン更新をコミットしました"
+
+  create-release:
+    name: GitHub リリース作成
+    runs-on: ubuntu-latest
+    needs: prepare-release
+    
+    steps:
+      - name: リポジトリチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main  # 更新された main ブランチを使用
+
+      - name: Python 環境セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: ビルドツールインストール
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: パッケージビルド
+        run: |
+          python -m build
+
+      - name: Git タグ作成
+        run: |
+          new_version="${{ needs.prepare-release.outputs.new_version }}"
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git tag -a "v$new_version" -m "Release v$new_version"
+          git push origin "v$new_version"
+          
+          echo "タグ v$new_version を作成しました"
+
+      - name: GitHub リリース作成
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare-release.outputs.new_version }}
+          name: Release v${{ needs.prepare-release.outputs.new_version }}
+          body: ${{ needs.prepare-release.outputs.changelog }}
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          files: |
+            dist/*
+
+  deploy-docs:
+    name: ドキュメント更新
+    runs-on: ubuntu-latest
+    needs: [prepare-release, create-release]
+    
+    steps:
+      - name: ドキュメントデプロイトリガー
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: docs-update
+          client-payload: '{"version": "${{ needs.prepare-release.outputs.new_version }}"}'
+
+  notify-completion:
+    name: 完了通知
+    runs-on: ubuntu-latest
+    needs: [prepare-release, create-release, deploy-docs]
+    if: always()
+    
+    steps:
+      - name: 成功通知
+        if: needs.create-release.result == 'success'
+        run: |
+          new_version="${{ needs.prepare-release.outputs.new_version }}"
+          echo "🎉 リリース v$new_version が正常に作成されました！"
+          echo "📦 GitHub Releases: https://github.com/${{ github.repository }}/releases/tag/v$new_version"
+          echo "📚 ドキュメント: https://sskyh0208.github.io/lambapi/"
+
+      - name: 失敗通知
+        if: needs.create-release.result == 'failure'
+        run: |
+          echo "❌ リリース作成に失敗しました"
+          echo "ログを確認してください: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

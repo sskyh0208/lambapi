@@ -1,0 +1,45 @@
+# マルチステージビルドによる最適化版 Dockerfile
+# ビルドステージ
+FROM public.ecr.aws/lambda/python:3.13 as builder
+
+# システム依存関係をインストール
+RUN yum update -y && \
+    yum install -y gcc python3-devel && \
+    yum clean all
+
+# ビルド用の作業ディレクトリ
+WORKDIR /build
+
+# requirements.txt をコピーして依存関係をビルド
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt -t /opt/python && \
+    find /opt/python -type f -name "*.pyc" -delete && \
+    find /opt/python -type d -name "__pycache__" -exec rm -rf {} + || true
+
+# 本番ステージ
+FROM public.ecr.aws/lambda/python:3.13
+
+# ビルドしたライブラリをコピー
+COPY --from=builder /opt/python ${LAMBDA_TASK_ROOT}/
+
+# アプリケーションコードをコピー
+COPY app.py ${LAMBDA_TASK_ROOT}/
+
+# 設定ファイルなどがあればコピー（例）
+# COPY config/ ${LAMBDA_TASK_ROOT}/config/
+# COPY utils/ ${LAMBDA_TASK_ROOT}/utils/
+
+# Python パスを設定
+ENV PYTHONPATH="${LAMBDA_TASK_ROOT}:${PYTHONPATH}"
+
+# 本番環境用の環境変数
+ENV ENVIRONMENT=production
+ENV LOG_LEVEL=WARNING
+ENV LOG_FORMAT=json
+
+# ヘルスチェック用（ローカルテスト時のみ）
+# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+#   CMD python -c "import app; print('OK')" || exit 1
+
+# Lambda ハンドラーを指定
+CMD ["app.lambda_handler"]
