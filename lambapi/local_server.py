@@ -10,6 +10,7 @@ import sys
 import os
 import importlib.util
 import argparse
+import traceback
 from typing import Any, Dict, Optional, Callable, Tuple
 
 
@@ -159,27 +160,130 @@ class LambdaHTTPHandler(BaseHTTPRequestHandler):
         pass
 
 
-def load_lambda_handler(app_path: str) -> Optional[Callable[[Dict[str, Any], Any], Dict[str, Any]]]:
+def handle_import_error(e: ImportError, app_path: str, debug: bool = False) -> None:
+    """ImportError の詳細ハンドリング"""
+    print(f"❌ アプリケーション読み込みエラー: ImportError")
+    print(f"📄 ファイル: {app_path}.py")
+    print(f"💬 エラー: {str(e)}")
+
+    if debug:
+        print(f"\n🔍 詳細情報:")
+        traceback.print_exc()
+
+    print(f"\n💡 解決方法:")
+    print(f"   - ファイル '{app_path}.py' が存在することを確認してください")
+    print(f"   - 必要な依存関係がインストールされていることを確認してください")
+    print(f"   - インポートパスが正しいことを確認してください")
+
+
+def handle_syntax_error(e: SyntaxError, app_path: str, debug: bool = False) -> None:
+    """SyntaxError の詳細ハンドリング"""
+    print(f"❌ アプリケーション読み込みエラー: SyntaxError")
+    print(f"📄 ファイル: {app_path}.py:{e.lineno if e.lineno else '?'}")
+    print(f"💬 エラー: {str(e)}")
+
+    if debug:
+        print(f"\n🔍 詳細情報:")
+        traceback.print_exc()
+
+    print(f"\n💡 解決方法:")
+    print(f"   - Python 構文をチェックしてください")
+    print(f"   - インデントが正しいことを確認してください")
+    print(f"   - 括弧やクォートの対応を確認してください")
+    if e.lineno:
+        print(f"   - {e.lineno} 行目付近を確認してください")
+
+
+def handle_attribute_error(e: AttributeError, app_path: str, debug: bool = False) -> None:
+    """AttributeError の詳細ハンドリング"""
+    print(f"❌ アプリケーション読み込みエラー: AttributeError")
+    print(f"📄 ファイル: {app_path}.py")
+    print(f"💬 エラー: {str(e)}")
+
+    if debug:
+        print(f"\n🔍 詳細情報:")
+        traceback.print_exc()
+
+    print(f"\n💡 解決方法:")
+    print(f"   - lambda_handler 関数が定義されていることを確認してください")
+    print(f"   - create_lambda_handler() を正しく呼び出していることを確認してください")
+    print(f"   - 例: lambda_handler = create_lambda_handler(create_app)")
+
+
+def handle_name_error(e: NameError, app_path: str, debug: bool = False) -> None:
+    """NameError の詳細ハンドリング"""
+    print(f"❌ アプリケーション読み込みエラー: NameError")
+    print(f"📄 ファイル: {app_path}.py")
+    print(f"💬 エラー: {str(e)}")
+
+    if debug:
+        print(f"\n🔍 詳細情報:")
+        traceback.print_exc()
+
+    print(f"\n💡 解決方法:")
+    print(f"   - 変数名のスペルを確認してください")
+    print(f"   - 変数が定義されているかチェックしてください")
+    print(f"   - スコープが正しいか確認してください")
+    print(f"   - 必要なインポートが行われているか確認してください")
+
+
+def handle_generic_error(e: Exception, app_path: str, debug: bool = False) -> None:
+    """その他のエラーの詳細ハンドリング"""
+    error_type = type(e).__name__
+    print(f"❌ アプリケーション読み込みエラー: {error_type}")
+    print(f"📄 ファイル: {app_path}.py")
+    print(f"💬 エラー: {str(e)}")
+
+    if debug:
+        print(f"\n🔍 詳細情報:")
+        traceback.print_exc()
+
+    print(f"\n💡 解決方法:")
+    print(f"   - アプリケーションコードを確認してください")
+    print(f"   - --debug フラグを使用して詳細情報を確認してください")
+    print(f"   - 例: lambapi serve {app_path} --debug")
+
+
+def load_lambda_handler(
+    app_path: str, debug: bool = False
+) -> Optional[Callable[[Dict[str, Any], Any], Dict[str, Any]]]:
     """アプリケーションファイルから lambda_handler を動的にロード"""
+    original_app_path = app_path
     if app_path.endswith(".py"):
         app_path = app_path[:-3]  # .py を除去
 
     # カレントディレクトリのファイルを試す
     file_path = f"{app_path}.py"
     if os.path.exists(file_path):
-        spec = importlib.util.spec_from_file_location("app_module", file_path)
-        if spec is None:
-            raise ImportError(f"Cannot load spec from {file_path}")
-        module = importlib.util.module_from_spec(spec)
-        if spec.loader is None:
-            raise ImportError(f"No loader for {file_path}")
-        spec.loader.exec_module(module)
+        try:
+            spec = importlib.util.spec_from_file_location("app_module", file_path)
+            if spec is None:
+                raise ImportError(f"Cannot load spec from {file_path}")
+            module = importlib.util.module_from_spec(spec)
+            if spec.loader is None:
+                raise ImportError(f"No loader for {file_path}")
+            spec.loader.exec_module(module)
 
-        if not hasattr(module, "lambda_handler"):
-            raise AttributeError(f"{file_path} に lambda_handler が見つかりません")
+            if not hasattr(module, "lambda_handler"):
+                raise AttributeError(f"{file_path} に lambda_handler が見つかりません")
 
-        handler = getattr(module, "lambda_handler")
-        return handler  # type: ignore
+            handler = getattr(module, "lambda_handler")
+            return handler  # type: ignore
+        except ImportError as e:
+            handle_import_error(e, app_path, debug)
+            return None
+        except SyntaxError as e:
+            handle_syntax_error(e, app_path, debug)
+            return None
+        except AttributeError as e:
+            handle_attribute_error(e, app_path, debug)
+            return None
+        except NameError as e:
+            handle_name_error(e, app_path, debug)
+            return None
+        except Exception as e:
+            handle_generic_error(e, app_path, debug)
+            return None
 
     # モジュールとしてインポートを試す
     try:
@@ -189,9 +293,43 @@ def load_lambda_handler(app_path: str) -> Optional[Callable[[Dict[str, Any], Any
         handler = getattr(module, "lambda_handler")
         return handler  # type: ignore
     except ImportError:
-        pass
+        # ファイルが見つからない場合の詳細表示
+        print(f"❌ アプリケーション読み込みエラー: FileNotFoundError")
+        print(f"📄 ファイル: {original_app_path}")
+        print(f"💬 エラー: アプリケーション '{original_app_path}' が見つかりません")
 
-    raise ImportError(f"アプリケーション '{app_path}' が見つかりません")
+        if debug:
+            print(f"\n🔍 詳細情報:")
+            print(f"   - 検索パス: {os.getcwd()}")
+            print(f"   - 試行ファイル: {file_path}")
+
+        print(f"\n💡 解決方法:")
+        print(f"   - ファイル '{app_path}.py' が存在することを確認してください")
+        print(f"   - 現在のディレクトリ: {os.getcwd()}")
+        print(f"   - 利用可能な .py ファイル:")
+        try:
+            py_files = [f for f in os.listdir(".") if f.endswith(".py") and not f.startswith("__")]
+            if py_files:
+                for py_file in py_files[:5]:  # 最大 5 つまで表示
+                    print(f"     - {py_file[:-3]}")
+            else:
+                print(f"     (なし)")
+        except PermissionError:
+            print(f"     (ディレクトリの読み取り権限がありません)")
+
+        return None
+    except SyntaxError as e:
+        handle_syntax_error(e, app_path, debug)
+        return None
+    except AttributeError as e:
+        handle_attribute_error(e, app_path, debug)
+        return None
+    except NameError as e:
+        handle_name_error(e, app_path, debug)
+        return None
+    except Exception as e:
+        handle_generic_error(e, app_path, debug)
+        return None
 
 
 def start_server(
@@ -331,25 +469,19 @@ def main() -> None:
         "--host", default="localhost", help="バインドするホスト (デフォルト: localhost)"
     )
     parser.add_argument("--port", type=int, default=8000, help="ポート番号 (デフォルト: 8000)")
+    parser.add_argument("--debug", action="store_true", help="詳細なデバッグ情報を表示")
 
     args = parser.parse_args()
 
-    try:
-        lambda_handler = load_lambda_handler(args.app)
-        if lambda_handler:
-            start_server(lambda_handler, args.host, args.port)
-        else:
-            raise ValueError(f"Could not load lambda_handler from {args.app}")
-    except (ImportError, AttributeError) as e:
-        print(f"❌ エラー: {e}")
+    lambda_handler = load_lambda_handler(args.app, args.debug)
+    if lambda_handler:
+        start_server(lambda_handler, args.host, args.port)
+    else:
+        print(f"\n🚨 アプリケーションの読み込みに失敗しました")
+        print(f"\n📖 サンプルコード:")
         print(
             f"""
-💡 ヒント:
-   1. アプリケーションファイルが存在することを確認してください
-   2. lambda_handler が定義されていることを確認してください
-   
-   例:
-   # app.py
+   # {args.app}.py
    from lambapi import API, create_lambda_handler
    
    def create_app(event, context):

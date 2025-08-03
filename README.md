@@ -327,6 +327,9 @@ lambapi create my-crud-api --template crud
 # ローカルサーバーを起動
 lambapi serve app
 lambapi serve app --host 0.0.0.0 --port 3000
+
+# デバッグモードで起動（詳細なエラー情報を表示）
+lambapi serve app --debug
 ```
 
 ### Python から直接使用
@@ -347,6 +350,7 @@ serve('my_app', host='0.0.0.0', port=3000)
 - ✅ **リクエストボディ**: JSON データの送受信
 - ✅ **CORS サポート**: 開発用に自動で CORS ヘッダーを追加
 - ✅ **Lambda 互換**: 実際の Lambda 環境と同じイベント・コンテキスト形式
+- ✅ **詳細なエラー表示**: エラー種別に応じたヒントと解決方法を表示
 - ✅ **エラーハンドリング**: 例外の適切な HTTP レスポンス変換
 
 ### プロジェクトテンプレート
@@ -431,6 +435,99 @@ curl -X DELETE http://localhost:8000/users/1
    # 正しいファイル名を指定
    lambapi serve your_app_file
    ```
+
+### エラーハンドリング
+
+lambapi の serve コマンドでは、アプリケーションの読み込み時に発生するエラーを詳細に表示し、問題の特定と解決を支援します。
+
+#### 基本的なエラー表示
+
+```bash
+lambapi serve my_app
+```
+
+エラーが発生した場合：
+
+```
+❌ アプリケーション読み込みエラー: SyntaxError
+📄 ファイル: my_app.py:25
+💬 エラー: expected ':' (my_app.py, line 25)
+
+💡 解決方法:
+   - Python 構文をチェックしてください
+   - インデントが正しいことを確認してください
+   - 括弧やクォートの対応を確認してください
+   - 25 行目付近を確認してください
+```
+
+#### デバッグモード
+
+詳細なスタックトレースと診断情報を表示する場合：
+
+```bash
+lambapi serve my_app --debug
+```
+
+デバッグモードでは以下の追加情報が表示されます：
+
+- 詳細なスタックトレース
+- ファイルパスと検索場所
+- 利用可能な .py ファイル一覧
+
+#### 対応するエラータイプ
+
+| エラータイプ | 説明 | 一般的な原因 |
+|-------------|------|-------------|
+| **SyntaxError** | Python 構文エラー | コロン忘れ、インデント不整合、括弧の不一致 |
+| **ImportError** | モジュールインポートエラー | ファイル不存在、依存関係不足、パス問題 |
+| **AttributeError** | 属性エラー | `lambda_handler` 未定義、スペルミス |
+| **NameError** | 名前エラー | 変数未定義、スコープ問題、インポート忘れ |
+| **FileNotFoundError** | ファイル未発見 | ファイルパス間違い、ファイル名スペルミス |
+
+#### エラーの種類別解決方法
+
+**SyntaxError の場合:**
+```python
+# ❌ 間違い
+def hello()
+    return {"message": "Hello"}
+
+# ✅ 正しい
+def hello():
+    return {"message": "Hello"}
+```
+
+**AttributeError の場合:**
+```python
+# ❌ 間違い - lambda_handler が未定義
+from lambapi import API, create_lambda_handler
+
+def create_app(event, context):
+    app = API(event, context)
+    # ... アプリ定義
+    return app
+
+# lambda_handler = create_lambda_handler(create_app)  # コメントアウトされている
+
+# ✅ 正しい
+from lambapi import API, create_lambda_handler
+
+def create_app(event, context):
+    app = API(event, context)
+    # ... アプリ定義
+    return app
+
+lambda_handler = create_lambda_handler(create_app)  # 必須
+```
+
+**ImportError の場合:**
+```bash
+# 依存関係のインストール
+pip install lambapi
+
+# または requirements.txt がある場合
+pip install -r requirements.txt
+```
 
 ## 開発
 
