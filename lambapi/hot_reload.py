@@ -49,13 +49,16 @@ class HotReloadServer:
         self.is_running = False
         self.restart_requested = False
         self.restart_lock = threading.Lock()
+        self.restart_count = 0
+        self.max_restart_attempts = 5
 
     def _get_server_command(self) -> List[str]:
         """サーバー起動コマンドを生成"""
+        # モジュール重複インポート警告を回避するため、専用ランチャーを使用
+        launcher_path = os.path.join(os.path.dirname(__file__), "server_launcher.py")
         cmd = [
             sys.executable,
-            "-m",
-            "lambapi.local_server",
+            launcher_path,
             self.app_path,
             "--host",
             self.host,
@@ -77,8 +80,8 @@ class HotReloadServer:
 
             self.server_process = subprocess.Popen(  # nosec B603
                 cmd,
-                stdout=subprocess.PIPE if not self.verbose else None,
-                stderr=subprocess.STDOUT if not self.verbose else None,
+                stdout=None,  # サーバーのログを直接表示
+                stderr=None,  # サーバーのログを直接表示
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
@@ -128,6 +131,7 @@ class HotReloadServer:
                 return  # 既に再起動リクエスト中
 
             self.restart_requested = True
+            self.restart_count += 1
 
             try:
                 if self.verbose:
@@ -232,11 +236,23 @@ class HotReloadServer:
                         if self.verbose:
                             print(f"⚠️ サーバープロセスが終了しました (終了コード: {return_code})")
 
-                        # 異常終了の場合は再起動を試行
+                        # 異常終了の場合は再起動を試行（制限回数まで）
                         if return_code != 0 and self.is_running:
-                            if self.verbose:
-                                print("🔄 サーバープロセスの異常終了を検知、再起動を試行...")
-                            self._restart_server()
+                            if self.restart_count < self.max_restart_attempts:
+                                if self.verbose:
+                                    restart_msg = (
+                                        f"🔄 サーバー再起動中... "
+                                        f"({self.restart_count + 1}/{self.max_restart_attempts})"
+                                    )
+                                    print(restart_msg)
+                                self._restart_server()
+                            else:
+                                print(
+                                    f"❌ 最大再起動回数 ({self.max_restart_attempts}) に達しました。サーバーを停止します。"
+                                )
+                                print("💡 アプリケーションコードにエラーがある可能性があります。")
+                                self.stop()
+                                break
 
                     # CPU 使用率を抑制
                     threading.Event().wait(0.5)

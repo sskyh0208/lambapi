@@ -105,8 +105,8 @@ jobs:
           # __init__.py のバージョン更新
           sed -i "s/__version__ = \".*\"/__version__ = \"$new_version\"/" lambapi/__init__.py
           
-          # pyproject.toml のバージョン更新
-          sed -i "s/version = \".*\"/version = \"$new_version\"/" pyproject.toml
+          # pyproject.toml のプロジェクトバージョンのみ更新 ([project] セクション内)
+          sed -i "/^\[project\]/,/^\[/{s/^version = \".*\"/version = \"$new_version\"/;}" pyproject.toml
           
           echo "バージョンを $new_version に更新しました"
 
