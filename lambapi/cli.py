@@ -10,7 +10,7 @@ from .local_server import main as server_main
 
 
 def create_project() -> None:
-    """新しい lambapi プロジェクトを作成"""
+    """新しい lambapi プロジェクトを作成（旧形式、下位互換性のため保持）"""
     parser = argparse.ArgumentParser(description="新しい lambapi プロジェクトを作成")
     parser.add_argument("project_name", help="プロジェクト名")
     parser.add_argument(
@@ -21,8 +21,12 @@ def create_project() -> None:
     )
 
     args = parser.parse_args(sys.argv[2:])
+    create_project_with_args(args.project_name, args.template)
 
-    project_dir = args.project_name
+
+def create_project_with_args(project_name: str, template: str = "basic") -> None:
+    """新しい lambapi プロジェクトを作成"""
+    project_dir = project_name
 
     if os.path.exists(project_dir):
         print(f"❌ エラー: ディレクトリ '{project_dir}' は既に存在します")
@@ -31,14 +35,14 @@ def create_project() -> None:
     # プロジェクトディレクトリを作成
     os.makedirs(project_dir)
 
-    if args.template == "basic":
+    if template == "basic":
         create_basic_project(project_dir)
-    elif args.template == "crud":
+    elif template == "crud":
         create_crud_project(project_dir)
 
     print(
         f"""
-✅ プロジェクト '{args.project_name}' を作成しました！
+✅ プロジェクト '{project_name}' を作成しました！
 
 🚀 開始方法:
    cd {project_dir}
@@ -463,12 +467,11 @@ def main() -> None:
 
     if args.command == "serve":
         # ローカルサーバー起動
-        sys.argv = ["lambapi-serve", args.app, "--host", args.host, "--port", str(args.port)]
+        sys.argv = ["lambapi", args.app, "--host", args.host, "--port", str(args.port)]
         server_main()
     elif args.command == "create":
         # プロジェクト作成
-        sys.argv = ["lambapi-create", args.project_name, "--template", args.template]
-        create_project()
+        create_project_with_args(args.project_name, args.template)
     else:
         parser.print_help()
 
