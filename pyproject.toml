@@ -92,7 +92,7 @@ warn_unreachable = true
 strict_equality = true
 
 [tool.pytest.ini_options]
-minversion = "0.1.2"
+minversion = "6.0"
 addopts = "-ra -q --strict-markers --strict-config"
 testpaths = [
     "tests",
