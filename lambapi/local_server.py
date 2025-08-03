@@ -124,9 +124,7 @@ class LambdaHTTPHandler(BaseHTTPRequestHandler):
             self.send_header(
                 "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS"
             )
-            self.send_header(
-                "Access-Control-Allow-Headers", "Content-Type, Authorization"
-            )
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
             # カスタムヘッダーの追加
             for header_name, header_value in headers.items():
@@ -196,9 +194,7 @@ def handle_syntax_error(e: SyntaxError, app_path: str, debug: bool = False) -> N
         print(f"   - {e.lineno} 行目付近を確認してください")
 
 
-def handle_attribute_error(
-    e: AttributeError, app_path: str, debug: bool = False
-) -> None:
+def handle_attribute_error(e: AttributeError, app_path: str, debug: bool = False) -> None:
     """AttributeError の詳細ハンドリング"""
     print(f"❌ アプリケーション読み込みエラー: AttributeError")
     print(f"📄 ファイル: {app_path}.py")
@@ -327,9 +323,7 @@ def load_lambda_handler(
     print(f"   - 現在のディレクトリ: {os.getcwd()}")
     print(f"   - 利用可能な .py ファイル:")
     try:
-        py_files = [
-            f for f in os.listdir(".") if f.endswith(".py") and not f.startswith("__")
-        ]
+        py_files = [f for f in os.listdir(".") if f.endswith(".py") and not f.startswith("__")]
         if py_files:
             for py_file in py_files[:5]:  # 最大 5 つまで表示
                 print(f"     - {py_file[:-3]}")
@@ -395,9 +389,7 @@ def start_server(
 """
             )
             sys.exit(1)
-        elif e.errno == 10048 or "Only one usage of each socket address" in str(
-            e
-        ):  # Windows
+        elif e.errno == 10048 or "Only one usage of each socket address" in str(e):  # Windows
             print(f"❌ エラー: ポート {port} は既に使用されています")
             print(
                 f"""
@@ -415,9 +407,7 @@ def start_server(
             sys.exit(1)
 
     try:
-        httpd = ServerWithHandler(
-            server_address, handler_factory(lambda_handler), lambda_handler
-        )
+        httpd = ServerWithHandler(server_address, handler_factory(lambda_handler), lambda_handler)
     except OSError as e:
         if e.errno == 48 or "Address already in use" in str(e):  # macOS/Linux
             print(f"❌ エラー: ポート {port} は既に使用されています")
@@ -435,9 +425,7 @@ def start_server(
 """
             )
             sys.exit(1)
-        elif e.errno == 10048 or "Only one usage of each socket address" in str(
-            e
-        ):  # Windows
+        elif e.errno == 10048 or "Only one usage of each socket address" in str(e):  # Windows
             print(f"❌ エラー: ポート {port} は既に使用されています")
             print(
                 f"""
@@ -483,9 +471,7 @@ def main() -> None:
     parser.add_argument(
         "--host", default="localhost", help="バインドするホスト (デフォルト: localhost)"
     )
-    parser.add_argument(
-        "--port", type=int, default=8000, help="ポート番号 (デフォルト: 8000)"
-    )
+    parser.add_argument("--port", type=int, default=8000, help="ポート番号 (デフォルト: 8000)")
     parser.add_argument("--debug", action="store_true", help="詳細なデバッグ情報を表示")
 
     args = parser.parse_args()
