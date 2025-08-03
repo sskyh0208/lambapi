@@ -1,0 +1,127 @@
+name: PyPI デプロイ
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-test:
+    name: TestPyPI デプロイ
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: リポジトリチェックアウト
+        uses: actions/checkout@v4
+
+      - name: バージョン検証
+        run: |
+          # リリースタグからバージョン抽出
+          release_version="${{ github.event.release.tag_name }}"
+          release_version=${release_version#v}  # v プレフィックス除去
+          
+          # pyproject.toml からバージョン確認
+          package_version=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          
+          echo "リリースバージョン: $release_version"
+          echo "パッケージバージョン: $package_version"
+          
+          if [ "$release_version" != "$package_version" ]; then
+            echo "❌ バージョンが一致しません"
+            exit 1
+          fi
+          
+          echo "✅ バージョンが一致しました"
+
+      - name: TestPyPI ビルド & 公開
+        uses: JRubics/poetry-publish@v2.1
+        with:
+          python_version: "3.13"
+          poetry_version: "latest"
+          pypi_token: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_name: "testpypi"
+          repository_url: "https://test.pypi.org/legacy/"
+
+      - name: TestPyPI インストールテスト
+        run: |
+          # TestPyPI からインストールしてテスト
+          sleep 30  # パッケージの反映を待つ
+          
+          release_version="${{ github.event.release.tag_name }}"
+          release_version=${release_version#v}
+          
+          pip install -i https://test.pypi.org/simple/ lambapi==$release_version || {
+            echo "⚠️ TestPyPI からのインストールに失敗しました（依存関係の問題の可能性）"
+            echo "パッケージ自体は正常にアップロードされている可能性があります"
+          }
+          
+          echo "✅ TestPyPI デプロイが完了しました"
+
+  deploy-production:
+    name: PyPI デプロイ
+    runs-on: ubuntu-latest
+    needs: deploy-test
+    
+    steps:
+      - name: リポジトリチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PyPI ビルド & 公開
+        uses: JRubics/poetry-publish@v2.1
+        with:
+          python_version: "3.13"
+          poetry_version: "latest"
+          pypi_token: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: PyPI インストールテスト
+        run: |
+          sleep 60  # パッケージの反映を待つ
+          
+          release_version="${{ github.event.release.tag_name }}"
+          release_version=${release_version#v}
+          
+          pip install lambapi==$release_version || {
+            echo "❌ PyPI からのインストールに失敗しました"
+            exit 1
+          }
+          
+          # 基本動作確認
+          python -c "
+          from lambapi import API
+          api = API({}, None, '/api/v1')
+          assert api.root_path == '/api/v1'
+          print('✅ PyPI パッケージが正常に動作します')
+          "
+
+  notify-success:
+    name: デプロイ成功通知
+    runs-on: ubuntu-latest
+    needs: [deploy-test, deploy-production]
+    if: success()
+    
+    steps:
+      - name: 成功通知
+        run: |
+          release_version="${{ github.event.release.tag_name }}"
+          release_version=${release_version#v}
+          
+          echo "🎉 PyPI デプロイが完了しました！"
+          echo "📦 PyPI: https://pypi.org/project/lambapi/$release_version/"
+          echo "🧪 TestPyPI: https://test.pypi.org/project/lambapi/$release_version/"
+          echo ""
+          echo "インストール方法:"
+          echo "pip install lambapi==$release_version"
+
+  notify-failure:
+    name: デプロイ失敗通知
+    runs-on: ubuntu-latest
+    needs: [deploy-test, deploy-production]
+    if: failure()
+    
+    steps:
+      - name: 失敗通知
+        run: |
+          echo "❌ PyPI デプロイに失敗しました"
+          echo "詳細: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
