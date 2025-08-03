@@ -171,7 +171,8 @@ class FileWatcher:
     def stop(self) -> None:
         """ファイル監視を停止"""
         if self.is_watching:
-            assert self.observer is not None, "Observer must be initialized if watching is active"
+            if self.observer is None:
+                raise RuntimeError("Observer must be initialized if watching is active")
             self.observer.stop()
             self.observer.join()
             self.is_watching = False
