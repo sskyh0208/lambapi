@@ -3,6 +3,12 @@ name: PyPI デプロイ
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'リリースタグ名 (例: v0.1.0)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,7 +25,11 @@ jobs:
       - name: バージョン検証
         run: |
           # リリースタグからバージョン抽出
-          release_version="${{ github.event.release.tag_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            release_version="${{ inputs.tag_name }}"
+          else
+            release_version="${{ github.event.release.tag_name }}"
+          fi
           release_version=${release_version#v}  # v プレフィックス除去
           
           # pyproject.toml からバージョン確認
@@ -49,7 +59,11 @@ jobs:
           # TestPyPI からインストールしてテスト
           sleep 30  # パッケージの反映を待つ
           
-          release_version="${{ github.event.release.tag_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            release_version="${{ inputs.tag_name }}"
+          else
+            release_version="${{ github.event.release.tag_name }}"
+          fi
           release_version=${release_version#v}
           
           pip install -i https://test.pypi.org/simple/ lambapi==$release_version || {
@@ -79,7 +93,11 @@ jobs:
         run: |
           sleep 60  # パッケージの反映を待つ
           
-          release_version="${{ github.event.release.tag_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            release_version="${{ inputs.tag_name }}"
+          else
+            release_version="${{ github.event.release.tag_name }}"
+          fi
           release_version=${release_version#v}
           
           pip install lambapi==$release_version || {
@@ -104,7 +122,11 @@ jobs:
     steps:
       - name: 成功通知
         run: |
-          release_version="${{ github.event.release.tag_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            release_version="${{ inputs.tag_name }}"
+          else
+            release_version="${{ github.event.release.tag_name }}"
+          fi
           release_version=${release_version#v}
           
           echo "🎉 PyPI デプロイが完了しました！"
