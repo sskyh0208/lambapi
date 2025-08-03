@@ -1,15 +1,6 @@
 name: CI/CD パイプライン
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'lambapi/**'
-      - 'examples/**'
-      - 'tests/**'
-      - 'pyproject.toml'
-      - 'setup.py'
-      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main ]
     paths:
