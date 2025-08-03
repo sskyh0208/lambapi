@@ -111,13 +111,44 @@ class Route:
 class API(BaseRouterMixin):
     """モダンな Lambda 用 API フレームワーク"""
 
-    def __init__(self, event: Dict[str, Any], context: Any):
+    def __init__(self, event: Dict[str, Any], context: Any, root_path: str = ""):
         self.event = event
         self.context = context
+        self.root_path = self._validate_root_path(root_path)
         self.routes: List[Route] = []
         self._middleware: List[Callable] = []
         self._cors_config: Optional[CORSConfig] = None
         self._error_registry = get_global_registry()
+
+    def _validate_root_path(self, root_path: str) -> str:
+        """root_path をバリデーションして正規化"""
+        if not root_path:
+            return ""
+        
+        # 先頭にスラッシュがない場合は追加
+        if not root_path.startswith("/"):
+            root_path = f"/{root_path}"
+        
+        # 末尾スラッシュを除去
+        root_path = root_path.rstrip("/")
+        
+        # 重複スラッシュを正規化
+        root_path = re.sub(r'/+', '/', root_path)
+        
+        return root_path
+
+    def _normalize_path(self, path: str) -> str:
+        """root_path を考慮してパスを正規化"""
+        if not self.root_path:
+            return path
+        
+        # 完全一致または / で区切られた場合のみ除去
+        if path == self.root_path:
+            return "/"
+        elif path.startswith(f"{self.root_path}/"):
+            return path[len(self.root_path):]
+        else:
+            return path
 
     def add_middleware(self, middleware: Callable) -> None:
         """ミドルウェアを追加"""
@@ -215,8 +246,11 @@ class API(BaseRouterMixin):
         self, path: str, method: str
     ) -> tuple[Optional[Route], Optional[Dict[str, str]]]:
         """マッチするルートを検索"""
+        # root_path を考慮してパスを正規化
+        normalized_path = self._normalize_path(path)
+        
         for route in self.routes:
-            path_params = route.match(path, method)
+            path_params = route.match(normalized_path, method)
             if path_params is not None:
                 return route, path_params
         return None, None
