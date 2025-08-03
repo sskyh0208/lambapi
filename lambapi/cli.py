@@ -455,6 +455,7 @@ def main() -> None:
     serve_parser.add_argument("app", help="アプリケーションファイル (例: app, app.py)")
     serve_parser.add_argument("--host", default="localhost", help="バインドするホスト")
     serve_parser.add_argument("--port", type=int, default=8000, help="ポート番号")
+    serve_parser.add_argument("--debug", action="store_true", help="詳細なデバッグ情報を表示")
 
     # create コマンド
     create_parser = subparsers.add_parser("create", help="新しいプロジェクトを作成")
@@ -467,7 +468,8 @@ def main() -> None:
 
     if args.command == "serve":
         # ローカルサーバー起動
-        sys.argv = ["lambapi", args.app, "--host", args.host, "--port", str(args.port)]
+        debug_args = ["--debug"] if args.debug else []
+        sys.argv = ["lambapi", args.app, "--host", args.host, "--port", str(args.port)] + debug_args
         server_main()
     elif args.command == "create":
         # プロジェクト作成
