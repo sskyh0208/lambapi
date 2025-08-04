@@ -64,6 +64,24 @@ Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
 Access-Control-Allow-Headers: Content-Type, Authorization
 ```
 
+### ホットリロード機能
+
+ファイルの変更を自動的に検知してサーバーを再起動します：
+
+- ✅ **自動ファイル監視**: Python ファイルの変更を検知
+- ✅ **ポート競合解決**: サーバー再起動時のポート競合を自動処理
+- ✅ **エラー時継続**: アプリケーション読み込みエラー時もサーバーは継続稼働
+
+```bash
+# ホットリロード付きで起動
+lambapi serve app --hot-reload
+
+# ファイル変更時の出力例
+⏳ ポート 8000 の解放を待機中...
+✅ ポート 8000 が解放されました
+🚀 サーバーを再起動しました
+```
+
 ### リアルタイムログ
 
 サーバーはリクエストとレスポンスをリアルタイムで表示します：
@@ -263,7 +281,11 @@ def request_info(request):
 
 ### よくある問題
 
-1. **lambda_handler が見つからない**
+1. **アプリケーション読み込みエラー**
+   
+   アプリケーションファイルの読み込みに失敗した場合、エラーページが表示されます。
+   ファイルを修正して保存すると、ホットリロード機能により自動的に更新されます。
+   
    ```python
    # app.py の最後に必ず追加
    lambda_handler = create_lambda_handler(create_app)
@@ -272,10 +294,9 @@ def request_info(request):
 2. **ポートが使用中**
    ```bash
    lambapi serve app --port 8001
-   
-   # または使用中のプロセスを確認
-   lsof -i :8000
    ```
+   
+   ホットリロード使用時は、ポートが自動的に解放されるまで待機します。
 
 3. **モジュールが見つからない**
    ```bash
