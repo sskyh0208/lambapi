@@ -106,37 +106,37 @@ SAM、Serverless Framework、CDK など、お好みのデプロイツールで�
 
 <div class="grid cards" markdown>
 
--   :material-rocket-launch:{ .lg .middle } **はじめに**
+-   🚀 **はじめに**
 
     ---
 
     lambapi の基本概念とセットアップ方法を学ぶ
 
-    [:octicons-arrow-right-24: クイックスタート](getting-started/quickstart.md)
+    [→ クイックスタート](getting-started/quickstart.md)
 
--   :material-book-open-page-variant:{ .lg .middle } **チュートリアル**
+-   📖 **チュートリアル**
 
     ---
 
     実際のコード例とともに機能を学ぶ
 
-    [:octicons-arrow-right-24: 基本的な API](tutorial/basic-api.md)
+    [→ 基本的な API](tutorial/basic-api.md)
 
--   :material-api:{ .lg .middle } **API リファレンス**
+-   📚 **API リファレンス**
 
     ---
 
     すべてのクラスとメソッドの詳細
 
-    [:octicons-arrow-right-24: API クラス](api/api.md)
+    [→ API クラス](api/api.md)
 
--   :material-application-cog:{ .lg .middle } **実践ガイド**
+-   ⚙️ **実践ガイド**
 
     ---
 
     本番環境での運用とベストプラクティス
 
-    [:octicons-arrow-right-24: デプロイメント](guides/deployment.md)
+    [→ デプロイメント](guides/deployment.md)
 
 </div>
 
