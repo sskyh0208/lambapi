@@ -41,7 +41,7 @@ from .exceptions import (
 from .error_handlers import error_handler, default_error_handler
 from .dev_tools import serve
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 __author__ = "Your Name"
 __email__ = "your.email@example.com"
 
