@@ -132,7 +132,7 @@ class HotReloadServer:
         """ポートが解放されるまで待機"""
         max_attempts = 10
         wait_time = 0.5
-        
+
         for attempt in range(max_attempts):
             try:
                 # ポートが使用可能かテスト
@@ -146,7 +146,7 @@ class HotReloadServer:
                 if self.verbose and attempt == 0:
                     print(f"⏳ ポート {self.port} の解放を待機中...")
                 time.sleep(wait_time)
-        
+
         if self.verbose:
             print(f"⚠️ ポート {self.port} の解放待機がタイムアウトしました")
 

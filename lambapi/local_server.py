@@ -144,7 +144,7 @@ class LambdaHTTPHandler(BaseHTTPRequestHandler):
                 self.wfile.write(JSONHandler.dumps(body).encode("utf-8"))
 
             # ログ出力（エラーハンドラー以外の場合のみ）
-            if not getattr(self.lambda_handler, '_is_error_handler', False):
+            if not getattr(self.lambda_handler, "_is_error_handler", False):
                 print(f"{method} {path} -> {status_code}")
 
         except Exception as e:
@@ -264,9 +264,9 @@ def start_server(
     port: int = 8000,
 ) -> None:
     """ローカルサーバーを起動"""
-    
+
     # エラーハンドラーかどうかをチェック
-    is_error_handler = getattr(lambda_handler, '_is_error_handler', False)
+    is_error_handler = getattr(lambda_handler, "_is_error_handler", False)
 
     class ServerWithHandler(HTTPServer):
         def __init__(
@@ -381,7 +381,7 @@ def main() -> None:
     lambda_handler = load_lambda_handler(args.app, args.debug)
     if not lambda_handler:
         lambda_handler = create_error_handler(args.app, args.debug)
-    
+
     start_server(lambda_handler, args.host, args.port)
 
 
