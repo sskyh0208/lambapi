@@ -8,6 +8,8 @@ import sys
 import signal
 import threading
 import subprocess  # nosec B404
+import time
+import socket
 from typing import List, Set, Optional, Union, Any
 from .file_watcher import FileWatcher, PollingWatcher, get_watch_paths, HAS_WATCHDOG
 
@@ -123,6 +125,30 @@ class HotReloadServer:
                 print(f"⚠️ サーバープロセス停止エラー: {e}")
         finally:
             self.server_process = None
+            # ポート解放を待機
+            self._wait_for_port_release()
+
+    def _wait_for_port_release(self) -> None:
+        """ポートが解放されるまで待機"""
+        max_attempts = 10
+        wait_time = 0.5
+
+        for attempt in range(max_attempts):
+            try:
+                # ポートが使用可能かテスト
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.bind((self.host, self.port))
+                sock.close()
+                if self.verbose and attempt > 0:
+                    print(f"✅ ポート {self.port} が解放されました")
+                return
+            except OSError:
+                if self.verbose and attempt == 0:
+                    print(f"⏳ ポート {self.port} の解放を待機中...")
+                time.sleep(wait_time)
+
+        if self.verbose:
+            print(f"⚠️ ポート {self.port} の解放待機がタイムアウトしました")
 
     def _restart_server(self) -> None:
         """サーバーを再起動"""
