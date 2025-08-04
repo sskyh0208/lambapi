@@ -197,7 +197,6 @@ def load_lambda_handler(
     app_path: str, debug: bool = False
 ) -> Optional[Callable[[Dict[str, Any], Any], Dict[str, Any]]]:
     """アプリケーションファイルから lambda_handler を動的にロード"""
-    original_app_path = app_path
     if app_path.endswith(".py"):
         app_path = app_path[:-3]  # .py を除去
 
@@ -362,7 +361,7 @@ def create_error_handler(app_path: str, debug: bool = False) -> Callable:
         }
 
     # エラーハンドラーであることを示すフラグを追加
-    error_handler._is_error_handler = True
+    setattr(error_handler, "_is_error_handler", True)
     return error_handler
 
 
