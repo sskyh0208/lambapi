@@ -414,7 +414,13 @@ class API(BaseRouterMixin):
         elif isinstance(result, dict):
             response = Response(result)
         else:
-            response = Response({"result": result})
+            # Pydantic BaseModel の場合は辞書に変換
+            if hasattr(result, 'model_dump'):
+                response = Response(result.model_dump())
+            elif hasattr(result, 'dict'):
+                response = Response(result.dict())
+            else:
+                response = Response({"result": result})
 
         # ミドルウェアを適用
         response = self._apply_middleware(request, response)
