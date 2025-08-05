@@ -37,7 +37,8 @@ repos:
     rev: '1.7.10'
     hooks:
       - id: bandit
-        args: ['-r', 'lambapi/', '--skip', 'B101']
+        args: ['--skip', 'B101']
+        files: ^lambapi/
 
   # pytest (最小限のテスト)
   - repo: local

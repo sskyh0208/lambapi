@@ -129,26 +129,31 @@ class HotReloadServer:
             self._wait_for_port_release()
 
     def _wait_for_port_release(self) -> None:
-        """ポートが解放されるまで待機"""
-        max_attempts = 10
-        wait_time = 0.5
+        """ポートが解放されるまで待機（ローカル開発用に継続的に待機）"""
+        attempt = 0
+        wait_time = 0.1  # 初期待機時間を短く
+        max_wait_time = 2.0  # 最大待機時間
+        backoff_factor = 1.2  # 指数バックオフ係数
 
-        for attempt in range(max_attempts):
+        while True:
             try:
                 # ポートが使用可能かテスト
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.bind((self.host, self.port))
                 sock.close()
                 if self.verbose and attempt > 0:
-                    print(f"✅ ポート {self.port} が解放されました")
+                    print(f"✅ ポート {self.port} が解放されました (試行回数: {attempt + 1})")
                 return
             except OSError:
-                if self.verbose and attempt == 0:
+                attempt += 1
+                if self.verbose and attempt == 1:
                     print(f"⏳ ポート {self.port} の解放を待機中...")
-                time.sleep(wait_time)
+                elif self.verbose and attempt % 10 == 0:  # 10 回ごとに進捗表示
+                    print(f"⏳ ポート解放待機中... (試行回数: {attempt})")
 
-        if self.verbose:
-            print(f"⚠️ ポート {self.port} の解放待機がタイムアウトしました")
+                time.sleep(wait_time)
+                # 指数バックオフで待機時間を徐々に延長（上限あり）
+                wait_time = min(wait_time * backoff_factor, max_wait_time)
 
     def _restart_server(self) -> None:
         """サーバーを再起動"""
@@ -220,7 +225,7 @@ class HotReloadServer:
                         poll_interval=max(2.0, self.reload_delay),
                     )
 
-                if not self.watcher.start():
+                if self.watcher and hasattr(self.watcher, "start") and not self.watcher.start():
                     print("⚠️ ファイル監視の開始に失敗しました。ホットリロード機能は無効です。")
 
             except Exception as e:
@@ -253,32 +258,32 @@ class HotReloadServer:
             return
 
         try:
-            # メインループ
-            while self.is_running and self.server_process:
+            # メインループ（サーバープロセスが停止してもファイル監視は継続）
+            while self.is_running:
                 try:
-                    # サーバープロセスの状態を監視
-                    return_code = self.server_process.poll()
+                    # サーバープロセスが存在する場合のみ状態を監視
+                    if self.server_process:
+                        return_code = self.server_process.poll()
+                    else:
+                        return_code = None
                     if return_code is not None:
                         if self.verbose:
                             print(f"⚠️ サーバープロセスが終了しました (終了コード: {return_code})")
 
-                        # 異常終了の場合は再起動を試行（制限回数まで）
+                        # 異常終了の場合の処理
                         if return_code != 0 and self.is_running:
-                            if self.restart_count < self.max_restart_attempts:
-                                if self.verbose:
-                                    restart_msg = (
-                                        f"🔄 サーバー再起動中... "
-                                        f"({self.restart_count + 1}/{self.max_restart_attempts})"
-                                    )
-                                    print(restart_msg)
-                                self._restart_server()
-                            else:
+                            if self.verbose:
                                 print(
-                                    f"❌ 最大再起動回数 ({self.max_restart_attempts}) に達しました。サーバーを停止します。"
+                                    "⚠️ サーバーが異常終了しました（構文エラーなどの可能性があります）"
                                 )
-                                print("💡 アプリケーションコードにエラーがある可能性があります。")
-                                self.stop()
-                                break
+                                print(
+                                    "📁 ファイル監視は継続中です。ファイルを修正すると自動で再起動を試行します。"
+                                )
+
+                            # サーバープロセスをクリアして監視を継続
+                            self.server_process = None
+                            # 再起動カウントをリセット（ファイル変更による再起動は別カウント）
+                            self.restart_count = 0
 
                     # CPU 使用率を抑制
                     threading.Event().wait(0.5)
