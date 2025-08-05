@@ -97,8 +97,10 @@ def _convert_value(value: Any, target_type: Type) -> Any:
         if not isinstance(value, list):
             raise ValueError(f"リスト型が期待されましたが {type(value)} を受け取りました")
 
-        item_type = get_args(target_type)[0] if get_args(target_type) else Any
-        return [_convert_value(item, item_type) for item in value]
+        args = get_args(target_type)
+        item_type = args[0] if args else Any
+        # mypy の型チェックを回避するためのキャスト
+        return [_convert_value(item, item_type) for item in value]  # type: ignore
 
     # データクラスの場合は再帰的に変換
     if is_dataclass(target_type):
