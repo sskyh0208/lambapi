@@ -33,19 +33,19 @@ from lambapi import API, create_lambda_handler
 
 def create_app(event, context):
     app = API(event, context)
-    
+
     @app.get("/")
     def hello():
         return {"message": "Hello, lambapi!"}
-    
+
     @app.get("/users/{user_id}")
     def get_user(user_id: str):
         return {"user_id": user_id, "name": f"User {user_id}"}
-    
+
     @app.get("/search")
     def search(q: str = "", limit: int = 10):
         return {"query": q, "limit": limit, "results": []}
-    
+
     return app
 
 lambda_handler = create_lambda_handler(create_app)
@@ -71,19 +71,19 @@ curl http://localhost:8000/
 <div class="grid cards" markdown>
 
 -   🚀 **[クイックスタート](https://sskyh0208.github.io/lambapi/getting-started/quickstart/)**
-    
+
     5 分で最初の API を構築
 
 -   📖 **[チュートリアル](https://sskyh0208.github.io/lambapi/tutorial/basic-api/)**
-    
+
     実際のコード例で機能を学習
 
 -   🔧 **[API リファレンス](https://sskyh0208.github.io/lambapi/api/api/)**
-    
+
     すべてのクラスとメソッドの詳細
 
 -   🏗️ **[デプロイメント](https://sskyh0208.github.io/lambapi/guides/deployment/)**
-    
+
     本番環境での運用とベストプラクティス
 
 </div>
@@ -99,11 +99,11 @@ def lambda_handler(event, context):
     path = event['path']
     query_params = event.get('queryStringParameters', {}) or {}
     limit = int(query_params.get('limit', 10))  # 手動型変換
-    
+
     if method == 'GET' and path == '/users':
         # 複雑なルーティング...
         pass
-    
+
     return {
         'statusCode': 200,
         'headers': {'Content-Type': 'application/json'},
@@ -130,12 +130,22 @@ cd lambapi
 pip install -e ".[dev]"
 ```
 
+### Pre-commit フックのセットアップ
+
+```bash
+# CI と同じチェックをコミット前に実行
+./scripts/setup-pre-commit.sh
+```
+
 ### テスト・品質チェック
 
 ```bash
 pytest              # テスト実行
 black .             # コードフォーマット
 mypy lambapi        # 型チェック
+
+# または一括実行
+pre-commit run --all-files
 ```
 
 ## 🤝 コミュニティ
