@@ -99,8 +99,10 @@ def _convert_value(value: Any, target_type: Type) -> Any:
 
         args = get_args(target_type)
         item_type = args[0] if args else Any
-        # mypy の型チェックを回避するためのキャスト
-        return [_convert_value(item, item_type) for item in value]  # type: ignore
+        # 型アノテーションからの変換を安全に実行
+        from typing import cast
+
+        return [_convert_value(item, cast(type, item_type)) for item in value]
 
     # データクラスの場合は再帰的に変換
     if is_dataclass(target_type):

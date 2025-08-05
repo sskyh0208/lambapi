@@ -225,7 +225,7 @@ class HotReloadServer:
                         poll_interval=max(2.0, self.reload_delay),
                     )
 
-                if self.watcher and not self.watcher.start():  # type: ignore
+                if self.watcher and hasattr(self.watcher, "start") and not self.watcher.start():
                     print("⚠️ ファイル監視の開始に失敗しました。ホットリロード機能は無効です。")
 
             except Exception as e:
