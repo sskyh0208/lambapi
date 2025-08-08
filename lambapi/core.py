@@ -252,6 +252,18 @@ class API(BaseRouterMixin):
         # ルートインデックスを再構築
         self._rebuild_route_index()
 
+    def include_auth(self, auth: Any) -> None:
+        """認証システムを追加"""
+        from .auth import DynamoDBAuth
+
+        if isinstance(auth, DynamoDBAuth):
+            # 認証用ルートを取得して API に追加
+            auth_routes = auth.get_auth_routes()
+            self.routes.extend(auth_routes)
+
+            # ルートインデックスを再構築
+            self._rebuild_route_index()
+
     def _add_route(
         self,
         path: str,

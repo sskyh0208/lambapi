@@ -40,6 +40,7 @@ from .exceptions import (
 )
 from .error_handlers import error_handler, default_error_handler
 from .dev_tools import serve
+from .auth import DynamoDBAuth, BaseUser
 
 __version__ = "0.1.6"
 __author__ = "Your Name"
@@ -70,4 +71,6 @@ __all__ = [
     "error_handler",
     "default_error_handler",
     "serve",
+    "DynamoDBAuth",
+    "BaseUser",
 ]
