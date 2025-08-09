@@ -363,14 +363,14 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ### よくあるエラー
 
-**ImportError: 認証依存関係がない**
+#### ImportError: 認証依存関係がない
 
 ```python
 # 解決方法
 pip install lambapi[auth]
 ```
 
-**DynamoDB 接続エラー**
+#### DynamoDB 接続エラー
 
 ```python
 # ローカル開発用設定
@@ -379,7 +379,7 @@ class User(BaseUser):
         endpoint_url = "http://localhost:8000"
 ```
 
-**JWT デコードエラー**
+#### JWT デコードエラー
 
 ```python
 # secret_key の一致を確認

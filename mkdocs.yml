@@ -89,7 +89,7 @@ nav:
   - API リファレンス:
     - API: api/api.md
   - 実践ガイド:
-    - 認証システム: authentication.md
+    - 認証システム: guides/authentication.md
     - デプロイメント: guides/deployment.md
     - リリース: guides/release.md
   - 例とサンプル:
