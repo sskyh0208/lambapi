@@ -41,17 +41,38 @@ from ..exceptions import (
 class DynamoDBAuth:
     """DynamoDB 認証システムのメインクラス"""
 
-    def __init__(self, custom_user: Optional[Type[BaseUser]] = None):
+    def __init__(
+        self, custom_user: Optional[Type[BaseUser]] = None, secret_key: Optional[str] = None
+    ):
         """
         DynamoDBAuth のコンストラクタ
 
         Args:
             custom_user: カスタムユーザーモデル（BaseUser を継承したクラス）
+            secret_key: JWT 署名用の秘密鍵（優先度最高）
         """
+        import os
+
         self.user_model = custom_user or BaseUser
         self.table_name = self.user_model._get_table_name()
-        self.secret_key = self.user_model._get_secret_key()
         self.expiration = self.user_model._get_expiration()
+
+        # secret_key の優先順位
+        if secret_key:
+            # 優先度 1: 明示的指定
+            self.secret_key = secret_key
+        else:
+            # 優先度 2: 環境変数
+            env_key = os.getenv("LAMBAPI_SECRET_KEY")
+            if env_key:
+                self.secret_key = env_key
+            else:
+                # エラー: どちらも設定されていない
+                raise ValueError(
+                    "Secret key is required for JWT authentication.\n"
+                    "Set it via: DynamoDBAuth(secret_key='your-key') or "
+                    "export LAMBAPI_SECRET_KEY='your-key'"
+                )
 
         # DynamoDB クライアントの初期化
         endpoint_url = self.user_model._get_endpoint_url()

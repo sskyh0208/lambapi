@@ -25,7 +25,6 @@ class CustomUser(BaseUser):
 
     class Meta(BaseUser.Meta):
         table_name = "test_users"
-        secret_key = "test_secret_key"
         expiration = 3600
         is_email_login = True
         is_role_permission = True
@@ -92,10 +91,33 @@ class TestBaseUser:
 class TestDynamoDBAuth:
     """DynamoDBAuth クラスのテスト"""
 
+    def test_secret_key_required(self):
+        """secret_key が必要であることのテスト"""
+        # secret_key を指定しない場合、ValueError が発生することを確認
+        with pytest.raises(ValueError, match="Secret key is required"):
+            DynamoDBAuth(CustomUser)
+
+    def test_explicit_secret_key(self):
+        """明示的 secret_key 指定のテスト"""
+        auth = DynamoDBAuth(CustomUser, secret_key="explicit_key")
+        assert auth.secret_key == "explicit_key"
+
+    def test_environment_variable_secret_key(self):
+        """環境変数 secret_key のテスト"""
+        import os
+
+        os.environ["LAMBAPI_SECRET_KEY"] = "env_key"
+        try:
+            auth = DynamoDBAuth(CustomUser)
+            assert auth.secret_key == "env_key"
+        finally:
+            # 環境変数をクリア
+            os.environ.pop("LAMBAPI_SECRET_KEY", None)
+
     def setup_method(self):
         """テストセットアップ"""
-        # 実際の DynamoDB ローカルを使用
-        self.auth = DynamoDBAuth(CustomUser)
+        # 実際の DynamoDB ローカルを使用（テスト用 secret_key 指定）
+        self.auth = DynamoDBAuth(CustomUser, secret_key="test_secret_key")
 
         # テスト用テーブルを作成
         self._create_test_table()

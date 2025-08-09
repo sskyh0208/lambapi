@@ -22,7 +22,6 @@ class Meta:
     """BaseUser のデフォルトメタ設定"""
 
     table_name = "users"
-    secret_key = "your_secret_key"
     expiration = 3600
     id_type = "uuid"
     is_email_login = False
@@ -157,11 +156,6 @@ class BaseUser:
     def _get_table_name(cls) -> str:
         """テーブル名を取得"""
         return cls.Meta.table_name
-
-    @classmethod
-    def _get_secret_key(cls) -> str:
-        """秘密鍵を取得"""
-        return cls.Meta.secret_key
 
     @classmethod
     def _get_expiration(cls) -> int:
