@@ -197,3 +197,5 @@ temp/
 
 # PyPI configuration
 .pypirc
+
+.definition/

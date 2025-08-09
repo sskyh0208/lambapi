@@ -53,6 +53,11 @@ setup(
         # Lambda 環境では標準ライブラリのみを使用
     ],
     extras_require={
+        "auth": [
+            "boto3>=1.28.0",
+            "PyJWT>=2.8.0",
+            "bcrypt>=4.0.0",
+        ],
         "dev": [
             "pytest>=6.0",
             "pytest-cov>=2.0",

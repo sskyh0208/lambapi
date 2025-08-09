@@ -46,6 +46,12 @@ dev = [
 validation = [
     "pydantic>=2.0",
 ]
+auth = [
+    "boto3>=1.28.0",
+    "PyJWT>=2.8.0",
+    "bcrypt>=4.0.0",
+    "cryptography>=41.0.0",
+]
 
 [project.scripts]
 lambapi = "lambapi.cli:main"
@@ -95,6 +101,14 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "lambapi.auth.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+warn_return_any = false
+warn_unreachable = false
 
 [tool.pytest.ini_options]
 minversion = "6.0"

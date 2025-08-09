@@ -41,6 +41,16 @@ from .exceptions import (
 from .error_handlers import error_handler, default_error_handler
 from .dev_tools import serve
 
+# 認証機能（オプション）
+try:
+    from .auth import BaseUser, DynamoDBAuth
+
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    BaseUser = None  # type: ignore
+    DynamoDBAuth = None  # type: ignore
+
 __version__ = "0.1.6"
 __author__ = "Your Name"
 __email__ = "your.email@example.com"
@@ -71,3 +81,7 @@ __all__ = [
     "default_error_handler",
     "serve",
 ]
+
+# 認証機能が利用可能な場合のみ追加
+if _AUTH_AVAILABLE:
+    __all__.extend(["BaseUser", "DynamoDBAuth"])
