@@ -52,8 +52,10 @@ from lambapi.auth import BaseUser, DynamoDBAuth
 def create_app(event, context):
     app = API(event, context)
 
-    # 認証システムの初期化（BaseUser を使用）
-    auth = DynamoDBAuth()
+    # 認証システムの初期化（secret_key が必須）
+    auth = DynamoDBAuth(secret_key="your-secure-secret-key")
+    # または環境変数を設定: export LAMBAPI_SECRET_KEY="your-secure-secret-key"
+    # auth = DynamoDBAuth()  # 環境変数 LAMBAPI_SECRET_KEY から自動取得
 
     @app.post("/auth/signup")
     def signup(request):
@@ -97,8 +99,8 @@ class User(BaseUser):
         self.email = email
         self.role = role
 
-# カスタムユーザーで認証システムを初期化
-auth = DynamoDBAuth(User)
+# カスタムユーザーで認証システムを初期化（secret_key 必須）
+auth = DynamoDBAuth(User, secret_key="your-secure-secret-key")
 ```
 
 ### 3. ルーターを使用した認証エンドポイント
@@ -113,7 +115,7 @@ def create_app(event, context):
     app = API(event, context)
 
     # 認証システムと関連ルーターを作成
-    auth = DynamoDBAuth(User)
+    auth = DynamoDBAuth(User, secret_key="your-secure-secret-key")
     auth_router = create_auth_router(auth)
 
     # 認証ルーターを登録
@@ -341,23 +343,36 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ### 推奨事項
 
-1. **環境変数を使用**:
+1. **環境変数を使用** (最重要):
+   ```bash
+   # 本番環境での推奨方法
+   export LAMBAPI_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+   ```
    ```python
-   import os
-
-   class User(BaseUser):
-       class Meta(BaseUser.Meta):
-           secret_key = os.getenv("JWT_SECRET_KEY", "fallback-key")
+   # コード内では環境変数から自動取得
+   auth = DynamoDBAuth()  # LAMBAPI_SECRET_KEY を自動使用
    ```
 
-2. **強力な秘密鍵を生成**:
+2. **明示的な secret_key 指定** (開発・テスト用):
+   ```python
+   # 開発環境やテストでの明示的指定
+   auth = DynamoDBAuth(secret_key="development-key-do-not-use-in-production")
+   ```
+
+3. **強力な秘密鍵を生成**:
    ```bash
+   # 安全なランダムキー生成
    python -c "import secrets; print(secrets.token_urlsafe(32))"
    ```
 
-3. **HTTPS の使用**: 本番環境では必ず HTTPS を使用
+4. **秘密鍵の管理**:
+   - **絶対にソースコードに含めない**
+   - 環境変数または AWS Systems Manager Parameter Store を使用
+   - 定期的にローテーションを実施
 
-4. **適切な権限設定**: DynamoDB IAM ロールの最小権限の原則
+5. **HTTPS の使用**: 本番環境では必ず HTTPS を使用
+
+6. **適切な権限設定**: DynamoDB IAM ロールの最小権限の原則
 
 ## トラブルシューティング
 
