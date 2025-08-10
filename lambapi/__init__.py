@@ -26,6 +26,7 @@ from .validation import validate_and_convert, convert_to_dict
 from .router import Router
 from .base_router import BaseRouterMixin
 from .cors import CORSConfig, create_cors_config
+from .dependencies import Query, Path, Body, Authenticated
 from .exceptions import (
     APIError,
     ValidationError,
@@ -67,6 +68,10 @@ __all__ = [
     "convert_to_dict",
     "CORSConfig",
     "create_cors_config",
+    "Query",
+    "Path",
+    "Body",
+    "Authenticated",
     "APIError",
     "ValidationError",
     "NotFoundError",
