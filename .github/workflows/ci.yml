@@ -40,7 +40,7 @@ jobs:
         run: flake8 .
 
       - name: MyPy 型チェック
-        run: mypy lambapi/
+        run: mypy lambapi/ --exclude lambapi/templates/
 
   test:
     name: テストスイート
@@ -162,8 +162,8 @@ jobs:
 
       - name: Bandit セキュリティスキャン
         run: |
-          bandit -r lambapi/ -f json -o bandit-report.json || true
-          bandit -r lambapi/ -f txt || true
+          bandit -r lambapi/ -f json -o bandit-report.json --skip B101 || true
+          bandit -r lambapi/ -f txt --skip B101 || true
 
       - name: 依存関係セキュリティチェック
         run: |

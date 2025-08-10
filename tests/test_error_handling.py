@@ -4,6 +4,7 @@
 
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -64,7 +65,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 400
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "VALIDATION_ERROR"
         assert body["message"] == "Email is required"
         assert body["field"] == "email"
@@ -83,7 +84,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 404
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "NOT_FOUND"
         assert body["message"] == "User not found (ID: 123)"
         assert body["details"]["resource"] == "User"
@@ -103,7 +104,7 @@ class TestErrorHandling:
 
         assert result["statusCode"] == 401
         assert result["headers"]["WWW-Authenticate"] == "Bearer"
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "AUTH_REQUIRED"
         assert body["message"] == "Token required"
 
@@ -120,7 +121,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 403
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "ACCESS_DENIED"
         assert body["message"] == "Admin privileges required"
         assert body["details"]["resource"] == "users"
@@ -139,7 +140,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 409
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "CONFLICT"
         assert body["message"] == "Email already exists"
         assert body["details"]["resource"] == "user"
@@ -158,7 +159,7 @@ class TestErrorHandling:
 
         assert result["statusCode"] == 429
         assert result["headers"]["Retry-After"] == "60"
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "RATE_LIMIT_EXCEEDED"
         assert body["message"] == "Too many requests"
 
@@ -175,7 +176,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 408
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "TIMEOUT"
         assert body["message"] == "Operation timed out"
         assert body["details"]["timeout_seconds"] == 30.0
@@ -193,7 +194,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 500
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "INTERNAL_ERROR"
         assert body["message"] == "Database connection failed"
 
@@ -211,7 +212,7 @@ class TestErrorHandling:
 
         assert result["statusCode"] == 503
         assert result["headers"]["Retry-After"] == "300"
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "SERVICE_UNAVAILABLE"
         assert body["message"] == "Service maintenance"
 
@@ -242,7 +243,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 418
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "CUSTOM_ERROR"
         assert body["message"] == "This is a custom error"
         assert body["custom_field"] == "custom_value"
@@ -260,7 +261,7 @@ class TestErrorHandling:
         result = app.handle_request()
 
         assert result["statusCode"] == 500
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "INTERNAL_ERROR"
         assert body["message"] == "An unexpected error occurred"
         assert "ValueError" in body["details"]["type"]
@@ -283,7 +284,7 @@ class TestErrorHandling:
 
         assert result["statusCode"] == 400
         assert result["headers"]["Access-Control-Allow-Origin"] == "https://example.com"
-        body = eval(result["body"])
+        body = json.loads(result["body"])
         assert body["error"] == "VALIDATION_ERROR"
 
     def test_multiple_validation_errors(self):

@@ -50,7 +50,7 @@ class TestBaseUser:
         user = BaseUser("test_user", "Password123!")
         assert user.id == "test_user"
         assert user.password is not None
-        assert user.password != "Password123!"  # ハッシュ化されているか
+        assert user.password != "Password123!"  # ハッシュ化されているか  # nosec B105
 
     def test_password_verification(self):
         """パスワード検証のテスト"""
@@ -99,17 +99,17 @@ class TestDynamoDBAuth:
 
     def test_explicit_secret_key(self):
         """明示的 secret_key 指定のテスト"""
-        auth = DynamoDBAuth(CustomUser, secret_key="explicit_key")
-        assert auth.secret_key == "explicit_key"
+        auth = DynamoDBAuth(CustomUser, secret_key="explicit_key")  # nosec B106
+        assert auth.secret_key == "explicit_key"  # nosec B105
 
     def test_environment_variable_secret_key(self):
         """環境変数 secret_key のテスト"""
         import os
 
-        os.environ["LAMBAPI_SECRET_KEY"] = "env_key"
+        os.environ["LAMBAPI_SECRET_KEY"] = "env_key"  # nosec B105
         try:
             auth = DynamoDBAuth(CustomUser)
-            assert auth.secret_key == "env_key"
+            assert auth.secret_key == "env_key"  # nosec B105
         finally:
             # 環境変数をクリア
             os.environ.pop("LAMBAPI_SECRET_KEY", None)
@@ -117,7 +117,7 @@ class TestDynamoDBAuth:
     def setup_method(self):
         """テストセットアップ"""
         # 実際の DynamoDB ローカルを使用（テスト用 secret_key 指定）
-        self.auth = DynamoDBAuth(CustomUser, secret_key="test_secret_key")
+        self.auth = DynamoDBAuth(CustomUser, secret_key="test_secret_key")  # nosec B106
 
         # テスト用テーブルを作成
         self._create_test_table()
@@ -160,7 +160,7 @@ class TestDynamoDBAuth:
             for item in response.get("Items", []):
                 self.auth.table.delete_item(Key={"id": item["id"]})
         except Exception:
-            pass
+            pass  # nosec B110
 
     def teardown_method(self):
         """テスト後処理"""
@@ -170,7 +170,7 @@ class TestDynamoDBAuth:
         """認証システムの初期化テスト"""
         assert self.auth.user_model == CustomUser
         assert self.auth.table_name == "test_users"
-        assert self.auth.secret_key == "test_secret_key"
+        assert self.auth.secret_key == "test_secret_key"  # nosec B105
         assert self.auth.expiration == 3600
 
     def test_signup_success(self):

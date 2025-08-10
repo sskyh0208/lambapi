@@ -106,11 +106,11 @@ def create_app(event, context):
         token = auth_header[7:]  # "Bearer " を除去
 
         # トークン検証（例）
-        if token != "valid-admin-token":
+        if token != "valid-admin-token":  # nosec B105
             raise AuthenticationError("Invalid token")
 
         # 権限チェック（例）
-        if token == "user-token":
+        if token == "user-token":  # nosec B105
             raise AuthorizationError(
                 "Admin privileges required", resource="dashboard", action="read"
             )

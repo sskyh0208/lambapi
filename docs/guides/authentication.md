@@ -151,6 +151,62 @@ def moderator_access(user, request):
     return {"reports": [...]}
 ```
 
+### Authenticated 依存性注入
+
+lambapi v0.2.1 以降では、依存性注入を使用して、より型安全で簡潔な認証処理が可能です：
+
+```python
+from lambapi import API, Authenticated, Query, Path
+
+@app.get("/profile")
+@auth.require_role("user")
+def get_profile(
+    user: CustomUser = Authenticated(..., description="認証されたユーザー")
+):
+    # user パラメータが自動的に注入される
+    return {
+        "user_id": user.id,
+        "role": getattr(user, 'role', 'user'),
+        "created_at": user.created_at.isoformat() if user.created_at else None
+    }
+
+@app.post("/admin/users/{target_user_id}")
+@auth.require_role("admin")
+def update_user_as_admin(
+    # 複数の依存性注入を組み合わせ可能
+    admin: CustomUser = Authenticated(..., description="管理者ユーザー"),
+    target_user_id: str = Path(..., description="対象ユーザー ID"),
+    new_role: str = Query(..., description="新しいロール")
+):
+    return {
+        "message": f"管理者 {admin.id} がユーザー {target_user_id} のロールを {new_role} に変更しました"
+    }
+```
+
+#### 従来方式との比較
+
+```python
+# 従来の方式（引き続きサポート）
+@app.get("/profile")
+@auth.require_role("user")  
+def get_profile_legacy(user, request):
+    return {"user_id": user.id}
+
+# 新しい依存性注入方式
+@app.get("/profile")
+@auth.require_role("user")
+def get_profile_modern(
+    user: CustomUser = Authenticated(...)
+):
+    return {"user_id": user.id}
+```
+
+新しい方式の利点：
+- **型安全性**: ユーザーオブジェクトの型が明確
+- **IDE サポート**: 自動補完や型チェック
+- **バリデーション**: パラメータの自動バリデーション
+- **ドキュメント生成**: 自動 API 仕様書生成
+
 ### 手動認証チェック
 
 より柔軟な認証制御：

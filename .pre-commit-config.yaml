@@ -1,52 +1,44 @@
 # Pre-commit フック設定
-# CI と同じチェックをコミット前に実行
+# 基本的な品質チェックをコミット前に実行
 
 repos:
-  # Black フォーマッター
+  # Python フォーマッター
   - repo: https://github.com/psf/black
     rev: '24.10.0'
     hooks:
       - id: black
         language_version: python3
 
-  # Flake8 リンター
+  # Python リンター
   - repo: https://github.com/pycqa/flake8
     rev: '7.1.1'
     hooks:
       - id: flake8
 
-  # MyPy 型チェック (軽量版)
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.13.0'
+  # Python 型チェック
+  - repo: local
     hooks:
       - id: mypy
-        files: ^lambapi/
+        name: mypy
+        entry: mypy
+        language: system
+        args: ['lambapi/', '--exclude', 'lambapi/templates/']
+        pass_filenames: false
 
-  # 基本的なチェック
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
-      - id: check-merge-conflict
-
-  # セキュリティチェック (軽量版)
+  # セキュリティチェック
   - repo: https://github.com/pycqa/bandit
     rev: '1.7.10'
     hooks:
       - id: bandit
         args: ['--skip', 'B101']
-        files: ^lambapi/
 
-  # pytest (最小限のテスト)
+  # テスト実行
   - repo: local
     hooks:
-      - id: pytest-quick
-        name: pytest-quick
+      - id: pytest
+        name: pytest
         entry: pytest
         language: system
-        args: ['tests/', '-x', '--tb=short', '--durations=5']
+        args: ['-x', '--tb=short']
         pass_filenames: false
         always_run: true

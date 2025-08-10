@@ -14,7 +14,7 @@ class CustomUser(BaseUser):
 
     class Meta(BaseUser.Meta):
         table_name = "test_users"
-        secret_key = "test_secret_key"
+        secret_key = "test_secret_key"  # nosec B105
         expiration = 3600
         is_email_login = True
         is_role_permission = True
@@ -39,7 +39,7 @@ class TestBaseUser:
         user = BaseUser("test_user", "Password123!")
         assert user.id == "test_user"
         assert user.password is not None
-        assert user.password != "Password123!"  # ハッシュ化されているか
+        assert user.password != "Password123!"  # ハッシュ化されているか  # nosec B105
 
     def test_password_verification(self):
         """パスワード検証のテスト"""
@@ -88,7 +88,7 @@ class TestBaseUser:
     def test_custom_meta_settings(self):
         """カスタムメタ設定のテスト"""
         assert CustomUser.Meta.table_name == "test_users"
-        assert CustomUser.Meta.secret_key == "test_secret_key"
+        assert CustomUser.Meta.secret_key == "test_secret_key"  # nosec B105
         assert CustomUser.Meta.is_email_login is True
         assert CustomUser.Meta.is_role_permission is True
 

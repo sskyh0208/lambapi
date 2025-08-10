@@ -62,7 +62,7 @@ def create_test_app(event, context):
 
         return result
 
-    # 従来の記法（互換性確認）
+    # 簡易な記法
     @app.get("/legacy/search")
     def legacy_search(request):
         query = request.query_params.get("q", "")
@@ -142,11 +142,11 @@ if __name__ == "__main__":
     result5 = lambda_handler(test_event_5, None)
     print(json.dumps(result5, indent=2, ensure_ascii=False))
 
-    # テスト 6: 従来の記法（互換性）
+    # テスト 6:簡易な記法
     test_event_6 = {
         "httpMethod": "GET",
         "path": "/legacy/search",
-        "queryStringParameters": {"q": "fastapi", "limit": "3"},
+        "queryStringParameters": {"q": "api", "limit": "3"},
         "headers": {},
         "body": None,
     }

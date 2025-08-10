@@ -13,6 +13,9 @@ from .response import Response
 from .cors import CORSConfig, create_cors_config
 from .error_handlers import get_global_registry
 from .base_router import BaseRouterMixin
+from .dependency_resolver import resolve_function_dependencies
+from .dependencies import get_function_dependencies
+from .exceptions import ValidationError
 
 # パフォーマンス最適化用キャッシュ
 _SIGNATURE_CACHE: Dict[Callable, inspect.Signature] = {}
@@ -310,12 +313,65 @@ class API(BaseRouterMixin):
         signature = _SIGNATURE_CACHE[handler]
         handler_params = signature.parameters
 
-        # 最初の引数が request かどうかをチェック
+        # 最初の引数が request かどうかをチェック（従来の方式）
         param_names = list(handler_params.keys())
         if param_names and param_names[0] in ["request", "req"]:
             # 従来の方式（request を第一引数に渡す）
             return handler(request)
 
+        # 新しい依存性注入システムを使用するかチェック
+        dependencies = get_function_dependencies(handler)
+        if dependencies:
+            # 新しい依存性注入システムを使用
+            # 認証が必要な場合は事前に認証処理を実行
+            if getattr(handler, "_auth_required", False):
+                # require_role デコレータのロジックを手動実行
+                self._handle_authentication_for_dependency_injection(handler, request)
+
+            return self._call_handler_with_dependencies(handler, request, path_params)
+        else:
+            # 従来のパラメータ注入システムを使用
+            return self._call_handler_legacy_params(handler, request, path_params, signature)
+
+    def _call_handler_with_dependencies(
+        self, handler: Callable, request: Request, path_params: Optional[Dict[str, str]]
+    ) -> Any:
+        """新しい依存性注入システムでハンドラーを呼び出し"""
+        try:
+            # 認証ユーザーを取得（必要に応じて）
+            authenticated_user = getattr(request, "_authenticated_user", None)
+
+            # 依存性を解決
+            resolved_params = resolve_function_dependencies(
+                handler, request, path_params, authenticated_user
+            )
+
+            # 従来のパラメータも処理（互換性のため）
+            legacy_params = self._get_legacy_params(handler, request, path_params)
+
+            # 依存性注入パラメータを優先し、従来パラメータで補完
+            final_params = {**legacy_params, **resolved_params}
+
+            return handler(**final_params) if final_params else handler()
+
+        except ValidationError:
+            # バリデーションエラーはそのまま再発生させる（エラーハンドラーで処理される）
+            raise
+        except Exception:
+            # その他のエラーが発生した場合は従来システムにフォールバック
+            signature = inspect.signature(handler)
+            return self._call_handler_legacy_params(handler, request, path_params, signature)
+
+    def _call_handler_legacy_params(
+        self,
+        handler: Callable,
+        request: Request,
+        path_params: Optional[Dict[str, str]],
+        signature: inspect.Signature,
+    ) -> Any:
+        """従来のパラメータ注入システムでハンドラーを呼び出し"""
+        handler_params = signature.parameters
+        param_names = list(handler_params.keys())
         call_args: Dict[str, Any] = {}
 
         # パスパラメータをマッチング
@@ -345,6 +401,32 @@ class API(BaseRouterMixin):
 
         # キーワード引数として渡す、もしくは引数なしで呼び出し
         return handler(**call_args) if call_args else handler()
+
+    def _get_legacy_params(
+        self, handler: Callable, request: Request, path_params: Optional[Dict[str, str]]
+    ) -> Dict[str, Any]:
+        """従来のパラメータ処理ロジックから基本パラメータを取得"""
+        signature = inspect.signature(handler)
+        handler_params = signature.parameters
+        param_names = list(handler_params.keys())
+        call_args: Dict[str, Any] = {}
+
+        # パスパラメータをマッチング（依存性注入で処理されないもの）
+        if path_params:
+            for param_name in param_names:
+                if param_name in path_params:
+                    # 依存性注入対象でない場合のみ追加
+                    param_info = handler_params.get(param_name)
+                    if param_info and not hasattr(param_info.default, "source"):
+                        call_args[param_name] = self._convert_param_type(
+                            path_params[param_name], param_info
+                        )
+
+        # request 引数がある場合は追加
+        if "request" in handler_params:
+            call_args["request"] = request
+
+        return call_args
 
     def _convert_param_type(self, value: str, param_info: inspect.Parameter) -> Any:
         """パラメータの型アノテーションに基づいて値を変換（最適化版）"""
@@ -416,6 +498,71 @@ class API(BaseRouterMixin):
         response = self._apply_cors_headers(request, response, route)
 
         return response
+
+    def _handle_authentication_for_dependency_injection(
+        self, handler: Callable, request: Request
+    ) -> None:
+        """依存性注入システム用の認証処理"""
+        try:
+            # ハンドラーから認証情報を取得
+            required_roles = getattr(handler, "_required_roles", [])
+
+            # DynamoDBAuth インスタンスを見つける（フレームスタックから探索）
+            import sys
+
+            auth_instance = None
+            frame = sys._getframe()
+
+            while frame and auth_instance is None:
+                frame_locals = frame.f_locals
+                frame_globals = frame.f_globals
+
+                # ローカル変数から auth を探索
+                for var_name, var_value in frame_locals.items():
+                    if hasattr(var_value, "get_authenticated_user") and hasattr(
+                        var_value, "_required_roles"
+                    ):
+                        auth_instance = var_value
+                        break
+
+                # グローバル変数から auth を探索
+                if auth_instance is None:
+                    for var_name, var_value in frame_globals.items():
+                        if hasattr(var_value, "get_authenticated_user") and hasattr(
+                            var_value, "_required_roles"
+                        ):
+                            auth_instance = var_value
+                            break
+
+                frame = frame.f_back  # type: ignore
+
+            if auth_instance is None:
+                # ハンドラーのモジュールから auth をインポート
+                handler_module = sys.modules.get(handler.__module__)
+                if handler_module and hasattr(handler_module, "auth"):
+                    auth_instance = handler_module.auth
+
+            if auth_instance:
+                # 認証ユーザーを取得
+                user = auth_instance.get_authenticated_user(request)
+
+                # ロール権限チェック
+                if auth_instance.user_model._is_role_permission_enabled():
+                    user_role = getattr(user, "role", None)
+                    if user_role not in required_roles:
+                        from .exceptions import AuthorizationError
+
+                        raise AuthorizationError(f"必要なロール: {', '.join(required_roles)}")
+
+                # 認証ユーザーを request に設定
+                setattr(request, "_authenticated_user", user)
+            else:
+                # 認証インスタンスが見つからない場合はパス（エラーは後で発生する）
+                pass
+
+        except Exception:
+            # 認証エラーをそのまま再発生させる
+            raise
 
     def _handle_global_error(self, error: Exception) -> Dict[str, Any]:
         """グローバルエラーハンドリング"""
