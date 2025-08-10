@@ -13,9 +13,11 @@ AWS Lambda で直感的でモダンな API を構築できる軽量フレーム�
 - 🚀 **直感的な記法** - デコレータベースのシンプルなルート定義
 - 📋 **自動パラメータ注入** - パス・クエリパラメータを関数引数として直接受け取り
 - 🔄 **型自動変換** - `int`、`float`、`bool`、`str` の自動型変換
+- 🛡️ **バリデーション機能** - リクエストパラメータの自動バリデーションとエラーレスポンス
 - 🌐 **CORS サポート** - プリフライトリクエストの自動処理
+- 🔐 **認証システム** - DynamoDB + JWT による完全な認証・認可機能
 - 🛡️ **構造化エラーハンドリング** - 本番運用に適した統一エラーレスポンス
-- 📦 **軽量** - 標準ライブラリのみ、外部依存なし
+- 📦 **軽量** - 標準ライブラリのみ、外部依存なし（認証機能は別途）
 - 🔒 **型安全** - 完全な型ヒント対応
 
 ## 🚀 クイックスタート
@@ -29,7 +31,15 @@ pip install lambapi
 ### 基本的な使用例
 
 ```python
-from lambapi import API, create_lambda_handler
+from lambapi import API, create_lambda_handler, Query, Path, Body
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class CreateUserRequest:
+    name: str
+    email: str
+    age: Optional[int] = None
 
 def create_app(event, context):
     app = API(event, context)
@@ -38,13 +48,20 @@ def create_app(event, context):
     def hello():
         return {"message": "Hello, lambapi!"}
 
-    @app.get("/users/{user_id}")
-    def get_user(user_id: str):
-        return {"user_id": user_id, "name": f"User {user_id}"}
-
     @app.get("/search")
-    def search(q: str = "", limit: int = 10):
-        return {"query": q, "limit": limit, "results": []}
+    def search(
+        query: str = Query(..., description="検索クエリ", min_length=1),
+        limit: int = Query(10, ge=1, le=100, description="結果数"),
+        category: str = Query("all", description="カテゴリー")
+    ):
+        return {"query": query, "limit": limit, "category": category}
+
+    @app.post("/users")
+    def create_user(user_data: CreateUserRequest = Body(...)):
+        return {
+            "message": "ユーザーが作成されました",
+            "user": {"name": user_data.name, "email": user_data.email}
+        }
 
     return app
 
@@ -116,37 +133,11 @@ def lambda_handler(event, context):
 ```python
 # lambapi 版（シンプル）
 @app.get("/users")
-def get_users(limit: int = 10):  # 自動型変換とデフォルト値
+def get_users(limit: int):
     return {"users": [f"user-{i}" for i in range(limit)]}
 ```
 
-## 🛠️ 開発
 
-### 開発環境のセットアップ
-
-```bash
-git clone https://github.com/sskyh0208/lambapi.git
-cd lambapi
-pip install -e ".[dev]"
-```
-
-### Pre-commit フックのセットアップ
-
-```bash
-# CI と同じチェックをコミット前に実行
-./scripts/setup-pre-commit.sh
-```
-
-### テスト・品質チェック
-
-```bash
-pytest              # テスト実行
-black .             # コードフォーマット
-mypy lambapi        # 型チェック
-
-# または一括実行
-pre-commit run --all-files
-```
 
 ## 🤝 コミュニティ
 
