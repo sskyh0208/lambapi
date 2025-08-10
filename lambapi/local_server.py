@@ -326,13 +326,13 @@ def start_server(
             f"""
 🚀 lambapi ローカルサーバーを起動しました
    URL: http://{host}:{port}
-   
+
 💡 使用例:
    curl http://{host}:{port}/
    curl http://{host}:{port}/hello/world
    curl -X POST http://{host}:{port}/users \\
         -H "Content-Type: application/json" -d '{{"name":"test"}}'
-   
+
 🛑 停止: Ctrl+C
 """
         )

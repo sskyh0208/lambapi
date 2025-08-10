@@ -16,13 +16,14 @@ repos:
       - id: flake8
 
   # Python 型チェック
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.13.0'
+  - repo: local
     hooks:
       - id: mypy
-        files: '^lambapi/'
-        args: ['--exclude', 'lambapi/templates/']
-        additional_dependencies: [types-requests]
+        name: mypy
+        entry: mypy
+        language: system
+        args: ['lambapi/', '--exclude', 'lambapi/templates/']
+        pass_filenames: false
 
   # セキュリティチェック
   - repo: https://github.com/pycqa/bandit

@@ -31,7 +31,7 @@ def create_test_app(event, context):
     def get_user_post(user_id: str, post_id: str):
         return {"user_id": user_id, "post_id": post_id, "method": "GET"}
 
-    # 従来の記法（互換性確認）
+    # 簡易な記法
     @app.get("/legacy/{item_id}")
     def get_legacy_item(request):
         item_id = request.path_params.get("item_id")
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     result3 = lambda_handler(test_event_3, None)
     print(json.dumps(result3, indent=2, ensure_ascii=False))
 
-    # テスト 4: 従来の記法（互換性）
+    # テスト 4: 簡易な記法
     test_event_4 = {
         "httpMethod": "GET",
         "path": "/legacy/old-item",

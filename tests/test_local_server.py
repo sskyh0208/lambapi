@@ -23,11 +23,11 @@ from lambapi import API, create_lambda_handler
 
 def create_app(event, context):
     app = API(event, context)
-    
+
     @app.get("/")
     def hello():
         return {"message": "Hello from test!"}
-    
+
     return app
 
 lambda_handler = create_lambda_handler(create_app)

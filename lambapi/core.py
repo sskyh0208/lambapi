@@ -513,7 +513,7 @@ class API(BaseRouterMixin):
             auth_instance = None
             frame = sys._getframe()
 
-            while frame and not auth_instance:
+            while frame and auth_instance is None:
                 frame_locals = frame.f_locals
                 frame_globals = frame.f_globals
 
@@ -526,7 +526,7 @@ class API(BaseRouterMixin):
                         break
 
                 # グローバル変数から auth を探索
-                if not auth_instance:
+                if auth_instance is None:
                     for var_name, var_value in frame_globals.items():
                         if hasattr(var_value, "get_authenticated_user") and hasattr(
                             var_value, "_required_roles"
@@ -536,7 +536,7 @@ class API(BaseRouterMixin):
 
                 frame = frame.f_back  # type: ignore
 
-            if not auth_instance:  # type: ignore
+            if auth_instance is None:
                 # ハンドラーのモジュールから auth をインポート
                 handler_module = sys.modules.get(handler.__module__)
                 if handler_module and hasattr(handler_module, "auth"):
