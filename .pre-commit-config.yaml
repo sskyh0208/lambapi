@@ -20,6 +20,7 @@ repos:
     rev: 'v1.13.0'
     hooks:
       - id: mypy
+        files: '^lambapi/'
         args: ['--exclude', 'lambapi/templates/']
         additional_dependencies: [types-requests]
 
