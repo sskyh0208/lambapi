@@ -5,7 +5,7 @@ Router クラス
 複数のルートをグループ化し、プレフィックスやタグを設定できます。
 """
 
-from typing import Callable, Optional, List, Any, Union
+from typing import Callable, Optional, List, Type, Any, Union
 
 from .core import Route
 from .base_router import BaseRouterMixin
@@ -32,12 +32,14 @@ class Router(BaseRouterMixin):
         path: str,
         method: str,
         handler: Callable,
+        request_format: Optional[Type] = None,
+        response_format: Optional[Type] = None,
         cors: Union[bool, CORSConfig, None] = None,
     ) -> Callable:
         """ルートを追加"""
         # プレフィックスを適用
         full_path = f"{self.prefix}{path}" if path != "/" else self.prefix or "/"
-        route = Route(full_path, method, handler, cors_config=None)
+        route = Route(full_path, method, handler, request_format, response_format)
         self.routes.append(route)
         return handler
 
@@ -55,6 +57,7 @@ class Router(BaseRouterMixin):
                     full_path,
                     route.method,
                     route.handler,
-                    cors_config=route.cors_config,
+                    route.request_format,
+                    route.response_format,
                 )
                 self.routes.append(new_route)

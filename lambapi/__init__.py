@@ -40,15 +40,6 @@ from .exceptions import (
 )
 from .error_handlers import error_handler, default_error_handler
 from .dev_tools import serve
-from .annotations import (
-    Body,
-    Path,
-    Query,
-    Header,
-    CurrentUser,
-    RequireRole,
-    OptionalAuth,
-)
 
 # 認証機能（オプション）
 try:
@@ -89,13 +80,6 @@ __all__ = [
     "error_handler",
     "default_error_handler",
     "serve",
-    "Body",
-    "Path",
-    "Query",
-    "Header",
-    "CurrentUser",
-    "RequireRole",
-    "OptionalAuth",
 ]
 
 # 認証機能が利用可能な場合のみ追加

@@ -4,7 +4,7 @@ lambapi を使って最初の API を構築しましょう。このガイドで�
 
 ## 前提条件
 
-- Python 3.10 以上
+- Python 3.7 以上
 - AWS Lambda の基本的な知識（任意）
 
 ## インストール
@@ -33,28 +33,17 @@ def create_app(event, context):
 lambda_handler = create_lambda_handler(create_app)
 ```
 
-### 2. アノテーションを使ったパラメータ注入
+### 2. パスパラメータの使用
 
 ```python title="app.py"
-from lambapi.annotations import Path, Query
-
 @app.get("/hello/{name}")
-def hello_name(name: str = Path(), lang: str = Query(default="ja")):
-    greetings = {
-        "ja": f"こんにちは、{name}さん！",
-        "en": f"Hello, {name}!",
-        "es": f"¡Hola, {name}!"
-    }
-    return {
-        "message": greetings.get(lang, greetings["en"]),
-        "language": lang
-    }
+def hello_name(name: str):
+    return {"message": f"Hello, {name}!"}
 ```
 
-### 3. FastAPI 風の自動推論
+### 3. クエリパラメータとデフォルト値
 
 ```python title="app.py"
-# 自動推論：型アノテーションから自動的にパラメータソースを判定
 @app.get("/search")
 def search(q: str = "", limit: int = 10, sort: str = "name"):
     return {
@@ -63,61 +52,36 @@ def search(q: str = "", limit: int = 10, sort: str = "name"):
         "sort": sort,
         "results": [f"item-{i}" for i in range(1, limit + 1)]
     }
-
-# パスパラメータも自動推論
-@app.get("/users/{user_id}")
-def get_user(user_id: int):  # 自動的に Path パラメータとして扱われる
-    return {
-        "id": user_id,
-        "name": f"User {user_id}",
-        "email": f"user{user_id}@example.com"
-    }
 ```
 
-### 4. データクラスとバリデーション
+### 4. 複数の HTTP メソッド
 
 ```python title="app.py"
-from dataclasses import dataclass
-from lambapi.annotations import Body
-from typing import Optional
-
-@dataclass
-class CreateUserRequest:
-    name: str
-    email: str
-    age: Optional[int] = None
-
 @app.post("/users")
-def create_user(user: CreateUserRequest = Body()):
+def create_user(request):
+    user_data = request.json()
     return {
         "message": "User created",
-        "user": {
-            "id": f"user_{hash(user.email)}",
-            "name": user.name,
-            "email": user.email,
-            "age": user.age
-        }
+        "user": user_data
     }
 
-# 自動推論版（Body は自動的に推論される）
-@app.post("/users/auto")
-def create_user_auto(user: CreateUserRequest):
-    return {"message": "User created with auto inference", "user": user}
+@app.put("/users/{user_id}")
+def update_user(user_id: str, request):
+    user_data = request.json()
+    return {
+        "message": f"User {user_id} updated",
+        "user": user_data
+    }
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: str):
+    return {"message": f"User {user_id} deleted"}
 ```
 
 ## 完全な例
 
 ```python title="complete_app.py"
 from lambapi import API, Response, create_lambda_handler
-from lambapi.annotations import Body, Path, Query
-from dataclasses import dataclass
-from typing import Optional
-
-@dataclass
-class User:
-    name: str
-    email: str
-    age: Optional[int] = None
 
 def create_app(event, context):
     app = API(event, context)
@@ -127,7 +91,7 @@ def create_app(event, context):
     def root():
         return {
             "name": "My API",
-            "version": "2.0.0",
+            "version": "1.0.0",
             "endpoints": [
                 "GET /",
                 "GET /hello/{name}",
@@ -137,9 +101,9 @@ def create_app(event, context):
             ]
         }
 
-    # アノテーション版の挨拶エンドポイント
+    # 挨拶エンドポイント
     @app.get("/hello/{name}")
-    def hello(name: str = Path(), lang: str = Query(default="ja")):
+    def hello(name: str, lang: str = "ja"):
         greetings = {
             "ja": f"こんにちは、{name}さん！",
             "en": f"Hello, {name}!",
@@ -150,7 +114,7 @@ def create_app(event, context):
             "language": lang
         }
 
-    # 自動推論版のユーザー一覧
+    # ユーザー一覧
     @app.get("/users")
     def get_users(limit: int = 10, offset: int = 0):
         users = [
@@ -166,25 +130,33 @@ def create_app(event, context):
             }
         }
 
-    # データクラス版のユーザー作成
+    # ユーザー作成
     @app.post("/users")
-    def create_user(user: User):  # 自動推論で Body として扱われる
+    def create_user(request):
+        user_data = request.json()
+
+        # 簡単なバリデーション
+        if not user_data.get("name"):
+            return Response(
+                {"error": "Name is required"},
+                status_code=400
+            )
+
         return Response(
             {
                 "message": "User created successfully",
                 "user": {
-                    "id": f"user_{hash(user.email)}",
-                    "name": user.name,
-                    "email": user.email,
-                    "age": user.age
+                    "id": 123,
+                    "name": user_data["name"],
+                    "email": user_data.get("email")
                 }
             },
             status_code=201
         )
 
-    # 自動推論版の個別ユーザー取得
+    # 個別ユーザー取得
     @app.get("/users/{user_id}")
-    def get_user(user_id: int):  # 自動的に Path パラメータ
+    def get_user(user_id: str):
         return {
             "id": user_id,
             "name": f"User {user_id}",
@@ -250,53 +222,35 @@ sam local start-api
 curl http://localhost:3000/hello/world?lang=en
 ```
 
-## 認証システム
+## 型変換の例
 
-```python title="auth_example.py"
-from lambapi import API, create_lambda_handler
-from lambapi.annotations import Path, CurrentUser, RequireRole, OptionalAuth
-from lambapi.auth import DynamoDBAuth, BaseUser
-from dataclasses import dataclass
-from typing import Optional
+lambapi は自動的に型変換を行います：
 
-@dataclass
-class User(BaseUser):
-    name: str
-    email: str
-    role: str
+```python
+@app.get("/calc")
+def calculate(x: int, y: int, operation: str = "add"):
+    """
+    GET /calc?x=10&y=5&operation=multiply
+    → x=10 (int), y=5 (int), operation="multiply" (str)
+    """
+    if operation == "add":
+        return {"result": x + y}
+    elif operation == "multiply":
+        return {"result": x * y}
+    else:
+        return {"error": "Unsupported operation"}
 
-def create_app(event, context):
-    app = API(event, context)
-
-    # 認証設定
-    auth = DynamoDBAuth(
-        table_name="users",
-        user_model=User,
-        region_name="ap-northeast-1"
-    )
-    app.include_auth(auth)
-
-    # 認証が必要なエンドポイント
-    @app.get("/profile")
-    def get_profile(current_user: User = CurrentUser()):
-        return {"user": current_user}
-
-    # ロール制限
-    @app.delete("/admin/users/{user_id}")
-    def delete_user(
-        user_id: int = Path(),
-        admin_user: User = RequireRole(roles=["admin"])
-    ):
-        return {"deleted": user_id, "by": admin_user.name}
-
-    # オプショナル認証
-    @app.get("/posts")
-    def list_posts(user: Optional[User] = OptionalAuth()):
-        if user:
-            return {"posts": "personalized", "user": user.name}
-        return {"posts": "public"}
-
-    return app
+@app.get("/settings")
+def get_settings(debug: bool = False, max_items: int = 100):
+    """
+    GET /settings?debug=true&max_items=50
+    → debug=True (bool), max_items=50 (int)
+    """
+    return {
+        "debug_mode": debug,
+        "max_items": max_items,
+        "environment": "development" if debug else "production"
+    }
 ```
 
 ## エラーハンドリング
@@ -305,17 +259,17 @@ def create_app(event, context):
 from lambapi import ValidationError, NotFoundError
 
 @app.get("/users/{user_id}")
-def get_user(user_id: int):
-    # バリデーションエラーは自動的に処理される
-    if user_id <= 0:
+def get_user(user_id: str):
+    # 入力検証
+    if not user_id.isdigit():
         raise ValidationError(
-            "User ID must be positive",
+            "User ID must be numeric",
             field="user_id",
             value=user_id
         )
 
     # 存在チェック
-    if user_id > 1000:
+    if int(user_id) > 1000:
         raise NotFoundError("User", user_id)
 
     return {"id": user_id, "name": f"User {user_id}"}
@@ -323,7 +277,7 @@ def get_user(user_id: int):
 
 ## 次のステップ
 
-おめでとうございます！新しい lambapi v0.2.x が動作しています。
+おめでとうございます！最初の lambapi アプリケーションが動作しています。
 
 次は以下のトピックを学びましょう：
 

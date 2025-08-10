@@ -1,6 +1,6 @@
-# デプロイメント
+# Lambda での使用方法
 
-lambapi v0.2.x アプリケーションを AWS Lambda で本番運用する際の設定方法とベストプラクティスについて説明します。
+lambapi アプリケーションを AWS Lambda で使用する際の設定方法について説明します。
 
 ## ZIP アーカイブでの使用
 
@@ -18,46 +18,17 @@ lambapi v0.2.x アプリケーションを AWS Lambda で本番運用する際�
 
 ```python title="app.py"
 from lambapi import API, create_lambda_handler
-from lambapi.annotations import Path, Query, Body, CurrentUser
-from dataclasses import dataclass
-from typing import Optional
-
-@dataclass
-class User:
-    name: str
-    email: str
-    age: Optional[int] = None
 
 def create_app(event, context):
     app = API(event, context)
 
     @app.get("/")
     def hello():
-        return {"message": "Hello from Lambda!", "version": "v0.2.x"}
+        return {"message": "Hello from Lambda!"}
 
-    # v0.2.x 自動推論を活用
     @app.get("/users/{user_id}")
-    def get_user(user_id: int):  # 自動的に Path パラメータ
+    def get_user(user_id: str):
         return {"user_id": user_id, "name": f"User {user_id}"}
-
-    # アノテーション版
-    @app.get("/api/users/{user_id}")
-    def get_user_explicit(user_id: int = Path()):
-        return {"user_id": user_id, "name": f"User {user_id}"}
-
-    # データクラス自動推論
-    @app.post("/users")
-    def create_user(user: User):  # 自動的に Body パラメータ
-        return {"message": "User created", "user": user}
-
-    # 混合アノテーション
-    @app.get("/search")
-    def search_users(
-        q: str = Query(),
-        limit: int = Query(default=10),
-        sort: str = Query(default="name")
-    ):
-        return {"query": q, "limit": limit, "sort": sort}
 
     return app
 
@@ -203,57 +174,22 @@ lambapi は以下の形式の Lambda イベントを処理します：
 ```python title="app.py"
 import os
 from lambapi import API, create_lambda_handler
-from lambapi.annotations import Path, Query, CurrentUser, RequireRole
-from lambapi.auth import DynamoDBAuth, BaseUser
-from dataclasses import dataclass
-from typing import Optional
-
-@dataclass
-class User(BaseUser):
-    name: str
-    email: str
-    role: str = "user"
 
 def create_app(event, context):
     app = API(event, context)
 
     # 環境別設定
-    environment = os.getenv("ENVIRONMENT", "development")
-    if environment == "development":
+    if os.getenv("ENVIRONMENT") == "development":
         app.enable_cors(origins="*")
     else:
         app.enable_cors(origins=["https://myapp.com"])
-
-    # 本番環境では認証システムを設定
-    if environment == "production":
-        auth = DynamoDBAuth(
-            table_name=os.getenv("USER_TABLE", "prod-users"),
-            user_model=User,
-            secret_key=os.getenv("LAMBAPI_SECRET_KEY"),
-            region_name=os.getenv("AWS_DEFAULT_REGION", "ap-northeast-1")
-        )
-        app.include_auth(auth)
 
     @app.get("/")
     def root():
         return {
             "message": "Hello from Lambda!",
-            "environment": environment,
-            "version": "v0.2.x"
+            "environment": os.getenv("ENVIRONMENT", "development")
         }
-
-    # 認証が必要なエンドポイント（本番のみ）
-    @app.get("/profile")
-    def get_profile(current_user: User = CurrentUser()):
-        return {"user": current_user}
-
-    # ロール制限エンドポイント
-    @app.delete("/admin/users/{user_id}")
-    def delete_user(
-        user_id: int = Path(),
-        admin_user: User = RequireRole(roles=["admin"])
-    ):
-        return {"deleted": user_id, "by": admin_user.name}
 
     return app
 
@@ -268,11 +204,6 @@ Lambda 関数の設定で以下の環境変数を設定：
 # 基本設定
 ENVIRONMENT=production
 LOG_LEVEL=INFO
-
-# lambapi v0.2.x 認証システム設定
-LAMBAPI_SECRET_KEY=your-very-secure-secret-key
-USER_TABLE=prod-users
-AWS_DEFAULT_REGION=ap-northeast-1
 
 # アプリケーション固有の設定
 DATABASE_URL=your-database-url

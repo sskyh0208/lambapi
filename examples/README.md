@@ -1,213 +1,188 @@
-# lambapi Examples - 段階的学習サンプル集
+# lambapi Examples
 
-lambapi v0.2.x の統合アノテーションシステムを段階的に学習できるサンプル集です。
+このディレクトリには lambapi の使用例が含まれています。
 
-## 📚 学習の進め方
+## ファイル構成
 
-**段階的に学習することをおすすめします：**
+### 1. `usage_example.py`
+基本的な lambapi の使用方法を示すサンプルアプリケーション。
 
-1. **[01_quickstart.py](01_quickstart.py)** - まずはここから！
-2. **[02_basic_crud.py](02_basic_crud.py)** - 実用的な API を作る
-3. **[03_authentication.py](03_authentication.py)** - 認証機能を理解する
-4. **[04_advanced_features.py](04_advanced_features.py)** - 高度な機能を活用する
+**機能:**
+- ユーザー管理 API (GET, POST)
+- パスパラメータとクエリパラメータの使用
+- エラーハンドリング
 
----
-
-## 01. クイックスタート 🚀
-
-**最初に実行するサンプル**
-
+**使用方法:**
 ```bash
-python examples/01_quickstart.py
+# ライブラリインストール後
+lambapi serve examples/usage_example
+
+# または Python から直接
+python examples/usage_example.py --serve
 ```
 
-**学習内容：**
-- シンプルな Hello World API
-- 自動パラメータ推論の基本
-- パスパラメータとクエリパラメータ
-
-**ファイル：** `01_quickstart.py`
-**実行時間：** 5 分
-**前提知識：** Python の基本構文のみ
-
----
-
-## 02. 基本的な CRUD API 📝
-
-**実用的なデータ操作を学ぶ**
-
+**テスト:**
 ```bash
-python examples/02_basic_crud.py
+curl http://localhost:8000/
+curl http://localhost:8000/users
+curl -X POST http://localhost:8000/users -H "Content-Type: application/json" -d '{"name":"Test User"}'
 ```
 
-**学習内容：**
-- データクラスによるバリデーション
-- CREATE, READ, UPDATE, DELETE 操作
-- エラーレスポンスの処理
-- 混合パラメータ（Path + Body）
+### 2. `example_app.py`
+より実践的な CRUD API の例。
 
-**ファイル：** `02_basic_crud.py`
-**実行時間：** 10 分
-**前提知識：** 01 を完了していること
+**機能:**
+- 完全な CRUD 操作
+- 多言語対応 (日本語/英語/スペイン語)
+- 検索・フィルタリング
+- バリデーション
 
----
-
-## 03. 認証機能 🔐
-
-**セキュアな API を作る**
-
+**使用方法:**
 ```bash
-python examples/03_authentication.py
+lambapi serve examples/example_app
 ```
 
-**学習内容：**
-- CurrentUser, RequireRole, OptionalAuth アノテーション
-- JWT 認証の統合
-- ロールベースアクセス制御
-- パブリック・プライベートエンドポイント
-
-**ファイル：** `03_authentication.py`
-**実行時間：** 15 分
-**前提知識：** 01, 02 を完了していること
-**注意：** DynamoDB なしでもデモ実行可能
-
----
-
-## 04. 高度な機能 ⚡
-
-**本番環境レベルの構成**
-
+**テスト:**
 ```bash
-python examples/04_advanced_features.py
+curl http://localhost:8000/hello/世界?lang=ja
+curl http://localhost:8000/users?search=Alice
+curl -X PUT http://localhost:8000/users/1 -H "Content-Type: application/json" -d '{"name":"Updated Alice"}'
+curl -X DELETE http://localhost:8000/users/1
 ```
 
-**学習内容：**
-- CORS 設定
-- Header アノテーション
-- カスタムエラーハンドリング
-- Pydantic 連携（オプション）
-- 複雑な検索・フィルタリング
+### 3. `local_server.py`
+standalone 版のローカル開発サーバー（参考用）。
 
-**ファイル：** `04_advanced_features.py`
-**実行時間：** 20 分
-**前提知識：** 01, 02, 03 を完了していること
+**注意:** pip install lambapi 後は `lambapi serve` コマンドを使用することを推奨します。
 
----
+## その他の例
 
-## 🎯 各サンプルの特徴
+### 最小構成の例
 
-| サンプル | 複雑度 | 学習目標 | 実行方法 |
-|---------|--------|----------|---------|
-| **01_quickstart** | ⭐ | API の基本を理解 | `python 01_quickstart.py` |
-| **02_basic_crud** | ⭐⭐ | 実用的な API 設計 | `python 02_basic_crud.py` |
-| **03_authentication** | ⭐⭐⭐ | セキュリティ機能 | `python 03_authentication.py` |
-| **04_advanced_features** | ⭐⭐⭐⭐ | 本番環境レベル | `python 04_advanced_features.py` |
+```python
+# minimal.py
+from lambapi import API, create_lambda_handler
 
----
+def create_app(event, context):
+    app = API(event, context)
 
-## 🚀 実行方法
+    @app.get("/")
+    def hello():
+        return {"message": "Hello, lambapi!"}
 
-### ローカルでのテスト実行
+    return app
 
-```bash
-# 各サンプルを直接実行
-python examples/01_quickstart.py
-python examples/02_basic_crud.py
-python examples/03_authentication.py
-python examples/04_advanced_features.py
+lambda_handler = create_lambda_handler(create_app)
 ```
 
-### ローカルサーバーで実行
+### CORS 対応の例
 
-```bash
-# lambapi CLI を使用（開発サーバー起動）
-lambapi serve examples/01_quickstart
-lambapi serve examples/02_basic_crud
-lambapi serve examples/03_authentication
-lambapi serve examples/04_advanced_features
+```python
+# cors_example.py
+from lambapi import API, create_lambda_handler, create_cors_config
+
+def create_app(event, context):
+    app = API(event, context)
+
+    # グローバル CORS 設定
+    app.enable_cors(
+        origins=["https://example.com"],
+        methods=["GET", "POST"],
+        headers=["Content-Type", "Authorization"]
+    )
+
+    @app.get("/api/data")
+    def get_data():
+        return {"data": "This endpoint supports CORS"}
+
+    return app
+
+lambda_handler = create_lambda_handler(create_app)
 ```
 
-### AWS Lambda にデプロイ
+### 高度なバリデーションの例
+
+```python
+# validation_example.py
+from lambapi import API, Response, create_lambda_handler
+from lambapi.exceptions import ValidationError
+
+def create_app(event, context):
+    app = API(event, context)
+
+    @app.post("/users")
+    def create_user(request):
+        data = request.json()
+
+        # 詳細なバリデーション
+        if not data.get("email") or "@" not in data["email"]:
+            raise ValidationError(
+                "Valid email is required",
+                field="email",
+                value=data.get("email")
+            )
+
+        if not data.get("age") or data["age"] < 0:
+            raise ValidationError(
+                "Age must be a positive number",
+                field="age",
+                value=data.get("age")
+            )
+
+        return Response({
+            "message": "User created successfully",
+            "user": data
+        }, status_code=201)
+
+    return app
+
+lambda_handler = create_lambda_handler(create_app)
+```
+
+## 実行方法
+
+1. **CLI コマンド使用**
+   ```bash
+   lambapi serve examples/usage_example
+   lambapi serve examples/example_app --port 3000
+   ```
+
+2. **Python から直接**
+   ```python
+   from lambapi import serve
+   serve('examples/usage_example')
+   ```
+
+3. **Lambda ハンドラーとして**
+   ```python
+   from examples.usage_example import lambda_handler
+
+   # AWS Lambda でのテスト
+   event = {'httpMethod': 'GET', 'path': '/', ...}
+   context = {...}
+   result = lambda_handler(event, context)
+   ```
+
+## デプロイ
+
+これらの例は AWS Lambda にそのままデプロイできます：
 
 ```bash
-# SAM でのデプロイ例
-cp examples/02_basic_crud.py app.py
+# SAM でのデプロイ
+cp examples/usage_example.py app.py
 sam build
 sam deploy --guided
+
+# Serverless Framework でのデプロイ
+cp examples/example_app.py handler.py
+serverless deploy
 ```
 
----
+## 学習の進め方
 
-## 📖 学習のポイント
+1. `usage_example.py` で基本概念を理解
+2. `example_app.py` で実践的な機能を学習
+3. 独自のアプリケーションを作成
+4. 本番環境にデプロイ
 
-### 01 → 02 で学ぶこと
-- 自動推論から明示的アノテーションへ
-- データクラスによる型安全性
-- エラーハンドリングのベストプラクティス
-
-### 02 → 03 で学ぶこと
-- 認証システムの統合方法
-- 統合アノテーション（認証もパラメータ）
-- セキュリティを考慮した API 設計
-
-### 03 → 04 で学ぶこと
-- 本番環境に必要な機能（CORS, Header）
-- 高度なバリデーション（Pydantic）
-- パフォーマンスとスケーラビリティ
-
----
-
-## 🔧 オプション設定
-
-### Pydantic を使用する場合
-
-```bash
-pip install pydantic[email]
-```
-
-### DynamoDB 認証を使用する場合
-
-```bash
-# AWS 認証情報の設定
-aws configure
-
-# 環境変数の設定
-export DYNAMODB_TABLE_NAME="your-users-table"
-export AWS_REGION="ap-northeast-1"
-```
-
----
-
-## 📚 さらに学習したい場合
-
-- **[公式ドキュメント](https://sskyh0208.github.io/lambapi/)** - 完全な API リファレンス
-- **[チュートリアル](../docs/tutorial/basic-api.md)** - 詳細なチュートリアル
-- **[認証ガイド](../docs/guides/authentication.md)** - 認証機能の詳細
-
----
-
-## 💡 よくある質問
-
-**Q: どのサンプルから始めればよいですか？**
-A: 必ず `01_quickstart.py` から始めてください。基本概念の理解が重要です。
-
-**Q: 認証機能を使うには DynamoDB が必要ですか？**
-A: `03_authentication.py` はデモモードで実行できます。実際の認証には DynamoDB 設定が必要です。
-
-**Q: Pydantic がなくても動作しますか？**
-A: はい。Pydantic はオプションです。ない場合はデータクラスのみ使用します。
-
-**Q: 本番環境で使用できますか？**
-A: サンプルは学習用です。本番環境では適切なセキュリティ設定を行ってください。
-
----
-
-## 🎉 学習完了後
-
-すべてのサンプルを理解できたら：
-
-1. **独自の API を作成** - 学んだ機能を組み合わせる
-2. **本番環境にデプロイ** - AWS Lambda で実際に運用
-3. **コミュニティに参加** - GitHub で質問・議論
-
-**Happy Coding with lambapi! 🚀**
+各例には詳細なコメントが含まれているので、コードを読みながら lambapi の機能を学習できます。

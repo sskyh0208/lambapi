@@ -168,10 +168,7 @@ class TestValidateAndConvert:
         class NotADataclass:
             pass
 
-        with pytest.raises(
-            ValueError,
-            match="NotADataclass はデータクラスまたは Pydantic BaseModel である必要があります",
-        ):
+        with pytest.raises(ValueError, match="NotADataclass はデータクラスである必要があります"):
             validate_and_convert({}, NotADataclass)
 
     def test_validation_error_in_constructor(self):
