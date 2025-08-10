@@ -433,6 +433,7 @@ class DynamoDBAuth:
             @wraps(func)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 import inspect
+                from ..dependencies import get_function_dependencies
 
                 sig = inspect.signature(func)
 
@@ -471,14 +472,32 @@ class DynamoDBAuth:
                     if user_role not in required_roles:
                         raise AuthorizationError(f"必要なロール: {', '.join(required_roles)}")
 
-                # user パラメータを最初の引数として注入
-                if "user" in sig.parameters:
-                    # user を最初の引数として渡し、残りの引数を続ける
-                    return func(user, *args, **kwargs)
-                else:
-                    # user パラメータがない場合はそのまま実行
-                    return func(*args, **kwargs)
+                # 認証されたユーザーを request オブジェクトに保存（依存性注入システム用）
+                setattr(request, "_authenticated_user", user)
 
+                # 新しい依存性注入システムが使用されているかチェック
+                dependencies = get_function_dependencies(func)
+                if dependencies:
+                    # 依存性注入システムが使用されている場合、
+                    # 認証ユーザーは自動的に注入されるので、そのまま実行
+                    return func(*args, **kwargs)
+                else:
+                    # 従来のシステム：user パラメータを手動注入
+                    if "user" in sig.parameters:
+                        # user を適切な位置に注入
+                        if kwargs:
+                            kwargs["user"] = user
+                            return func(*args, **kwargs)
+                        else:
+                            # user を最初の引数として渡し、残りの引数を続ける
+                            return func(user, *args, **kwargs)
+                    else:
+                        # user パラメータがない場合はそのまま実行
+                        return func(*args, **kwargs)
+
+            # ラップされた関数に元の関数の属性を保持
+            wrapper._auth_required = True  # type: ignore
+            wrapper._required_roles = required_roles  # type: ignore
             return wrapper
 
         return decorator
