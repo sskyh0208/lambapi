@@ -1,28 +1,50 @@
 # 認証システム
 
-LambAPI では、DynamoDB を使用した JWT ベースの認証システムを提供します。この認証システムは、ユーザー管理、セッション管理、ロールベースアクセス制御をサポートしています。
+lambapi v0.2.x では、認証システムも統合アノテーションシステムの一部として扱われます。DynamoDB を使用した JWT ベースの認証システムで、CurrentUser, RequireRole, OptionalAuth アノテーションにより、認証処理を簡潔に記述できます。
 
 ## 概要
 
 ### 特徴
 
+- **統合アノテーションシステム**: 認証もパラメータの一種として扱う
 - **JWT トークン認証**: セキュアなトークンベース認証
 - **DynamoDB バックエンド**: AWS サービスとの完全統合
 - **カスタマイズ可能**: BaseUser を継承してカスタムユーザーモデルを作成
-- **ロールベース認証**: 細かいアクセス制御をサポート
+- **ロールベース認証**: RequireRole アノテーションによる細かいアクセス制御
+- **オプショナル認証**: OptionalAuth でログイン状態に応じた処理
 - **セッション管理**: DynamoDB を使用した永続セッション
 - **パスワード暗号化**: bcrypt による安全なハッシュ化
+
+### v0.2.x の新機能
+
+```python
+# 従来の方式（削除済み）
+@auth.require_role(["admin"])
+@app.delete("/users/{user_id}")
+def delete_user(request, user_id: str):
+    pass
+
+# 新しいアノテーション方式
+@app.delete("/users/{user_id}")
+def delete_user(
+    user_id: str = Path(),
+    admin_user: User = RequireRole(roles=["admin"])
+):
+    return {"deleted": user_id, "by": admin_user.name}
+```
 
 ### アーキテクチャ
 
 ```mermaid
 graph TD
     A[Client] --> B[API Endpoint]
-    B --> C[DynamoDBAuth]
-    C --> D[BaseUser/CustomUser]
-    C --> E[DynamoDB]
-    C --> F[JWT Token]
-    F --> G[Session Storage]
+    B --> C[Annotation System]
+    C --> D[CurrentUser/RequireRole/OptionalAuth]
+    D --> E[DynamoDBAuth]
+    E --> F[BaseUser/CustomUser]
+    E --> G[DynamoDB]
+    E --> H[JWT Token]
+    H --> I[Session Storage]
 ```
 
 ## インストール
@@ -41,478 +63,558 @@ pip install lambapi[auth]
 
 ## 基本的な使用方法
 
-### 1. BaseUser の使用
-
-最もシンプルな使用方法：
+### 1. シンプルな認証システム
 
 ```python
 from lambapi import API, create_lambda_handler
+from lambapi.annotations import CurrentUser, RequireRole, OptionalAuth
 from lambapi.auth import BaseUser, DynamoDBAuth
+from dataclasses import dataclass
+from typing import Optional
 
-def create_app(event, context):
-    app = API(event, context)
-
-    # 認証システムの初期化（secret_key が必須）
-    auth = DynamoDBAuth(secret_key="your-secure-secret-key")
-    # または環境変数を設定: export LAMBAPI_SECRET_KEY="your-secure-secret-key"
-    # auth = DynamoDBAuth()  # 環境変数 LAMBAPI_SECRET_KEY から自動取得
-
-    @app.post("/auth/signup")
-    def signup(request):
-        return auth.signup(request)
-
-    @app.post("/auth/login")
-    def login(request):
-        return auth.login(request)
-
-    @app.post("/auth/logout")
-    def logout(request):
-        return auth.logout(request)
-
-    @app.get("/protected")
-    def protected_endpoint(request):
-        user = auth.get_authenticated_user(request)
-        return {"message": f"Hello, {user.id}!"}
-
-    return app
-
-lambda_handler = create_lambda_handler(create_app)
-```
-
-### 2. カスタムユーザーモデル
-
-より複雑なユーザー情報が必要な場合：
-
-```python
-from lambapi.auth import BaseUser, DynamoDBAuth
-
+@dataclass
 class User(BaseUser):
-    class Meta(BaseUser.Meta):
-        table_name = "my_users"
-        secret_key = "your-secret-key-here"  # 本番環境では環境変数を使用
-        is_email_login = True
-        is_role_permission = True
-
-    def __init__(self, id, password, name="", email="", role="user"):
-        super().__init__(id, password)
-        self.name = name
-        self.email = email
-        self.role = role
-
-# カスタムユーザーで認証システムを初期化（secret_key 必須）
-auth = DynamoDBAuth(User, secret_key="your-secure-secret-key")
-```
-
-### 3. ルーターを使用した認証エンドポイント
-
-認証エンドポイントを自動的に作成：
-
-```python
-from lambapi import API
-from lambapi.auth import BaseUser, DynamoDBAuth, create_auth_router
-
-def create_app(event, context):
-    app = API(event, context)
-
-    # 認証システムと関連ルーターを作成
-    auth = DynamoDBAuth(User, secret_key="your-secure-secret-key")
-    auth_router = create_auth_router(auth)
-
-    # 認証ルーターを登録
-    app.include_router(auth_router)
-
-    return app
-```
-
-これにより以下のエンドポイントが自動作成されます：
-- `POST /auth/signup` - ユーザー登録
-- `POST /auth/login` - ログイン
-- `POST /auth/logout` - ログアウト
-- `DELETE /auth/user/{user_id}` - ユーザー削除
-- `PUT /auth/user/{user_id}/password` - パスワード更新
-
-## ロールベースアクセス制御
-
-### require_role デコレータ
-
-特定のロールを持つユーザーのみにアクセスを制限：
-
-```python
-@app.get("/admin/users")
-@auth.require_role("admin")
-def admin_only(user, request):
-    # user パラメータが自動注入される
-    return {"message": f"Admin access granted to {user.id}"}
-
-@app.get("/moderator/reports")
-@auth.require_role(["admin", "moderator"])
-def moderator_access(user, request):
-    # 複数のロールを許可
-    return {"reports": [...]}
-```
-
-### 手動認証チェック
-
-より柔軟な認証制御：
-
-```python
-@app.get("/profile")
-def get_profile(request):
-    try:
-        user = auth.get_authenticated_user(request)
-        return {"profile": user.to_dict()}
-    except AuthenticationError:
-        return {"error": "Authentication required"}, 401
-```
-
-## 設定オプション
-
-### Meta クラス設定
-
-BaseUser の Meta クラスで動作をカスタマイズ：
-
-```python
-class User(BaseUser):
-    class Meta(BaseUser.Meta):
-        # DynamoDB 設定
-        table_name = "users"                    # テーブル名
-        endpoint_url = "http://localhost:8000"  # ローカル DynamoDB
-
-        # JWT 設定
-        secret_key = "your-secret-key"          # JWT 署名キー
-        expiration = 3600                       # トークン有効期限（秒）
-
-        # 機能設定
-        is_email_login = True                   # メールログインを有効化
-        is_role_permission = True               # ロール権限を有効化
-        enable_auth_logging = False             # 認証ログを有効化
-
-        # ID 設定
-        id_type = "uuid"                        # UUID 自動生成
-
-        # パスワード要件
-        password_min_length = 8                 # 最小文字数
-        password_require_uppercase = False      # 大文字必須
-        password_require_lowercase = False      # 小文字必須
-        password_require_digit = True           # 数字必須
-        password_require_special = False        # 特殊文字必須
-
-        # タイムスタンプ
-        auto_timestamps = True                  # 自動タイムスタンプ
-```
-
-## API リファレンス
-
-### ユーザー登録
-
-```http
-POST /auth/signup
-Content-Type: application/json
-
-{
-  "id": "user123",
-  "password": "password123",
-  "email": "user@example.com",     // is_email_login=True の場合必須
-  "name": "User Name",             // カスタムフィールド
-  "role": "user"                   // is_role_permission=True の場合
-}
-```
-
-**レスポンス例:**
-```json
-{
-  "message": "ユーザー登録が完了しました",
-  "user_id": "user123"
-}
-```
-
-### ログイン
-
-```http
-POST /auth/login
-Content-Type: application/json
-
-{
-  "id": "user123",                 // ID またはメールでログイン
-  "password": "password123"
-}
-```
-
-**レスポンス例:**
-```json
-{
-  "message": "ログインしました",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "user123",
-    "email": "user@example.com",
-    "name": "User Name",
-    "role": "user"
-  }
-}
-```
-
-### ログアウト
-
-```http
-POST /auth/logout
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-**レスポンス例:**
-```json
-{
-  "message": "ログアウトしました"
-}
-```
-
-### 認証が必要なエンドポイント
-
-```http
-GET /protected-endpoint
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-## DynamoDB テーブル設計
-
-### テーブル構造
-
-```json
-{
-  "TableName": "users",
-  "KeySchema": [
-    {
-      "AttributeName": "id",
-      "KeyType": "HASH"
-    }
-  ],
-  "AttributeDefinitions": [
-    {
-      "AttributeName": "id",
-      "AttributeType": "S"
-    },
-    {
-      "AttributeName": "email",
-      "AttributeType": "S"
-    }
-  ],
-  "GlobalSecondaryIndexes": [
-    {
-      "IndexName": "email-index",
-      "KeySchema": [
-        {
-          "AttributeName": "email",
-          "KeyType": "HASH"
-        }
-      ],
-      "Projection": {
-        "ProjectionType": "ALL"
-      }
-    }
-  ]
-}
-```
-
-### セッション管理
-
-セッション情報は同じテーブルに TTL 付きで保存されます：
-
-```json
-{
-  "id": "abc123def456",      // セッション ID（16 文字のハッシュ）
-  "token": "eyJhbGc...",     // JWT トークン
-  "user_id": "user123",      // ユーザー ID
-  "exp": "2024-01-01T12:00:00Z",  // 有効期限
-  "ttl": 1704110400          // DynamoDB TTL（自動削除）
-}
-```
-
-## セキュリティ考慮事項
-
-### パスワード保護
-
-- **bcrypt ハッシュ化**: ソルト付きハッシュで保存
-- **設定可能な要件**: 文字数、文字種別の制限
-- **フォールバック**: bcrypt が利用できない場合は SHA-256（テスト用）
-
-### トークンセキュリティ
-
-- **JWT 署名**: HMAC-SHA256 で署名
-- **有効期限**: 設定可能なトークン有効期限
-- **セッション検証**: トークンと DynamoDB セッションの二重チェック
-
-### 推奨事項
-
-1. **環境変数を使用** (最重要):
-   ```bash
-   # 本番環境での推奨方法
-   export LAMBAPI_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-   ```
-   ```python
-   # コード内では環境変数から自動取得
-   auth = DynamoDBAuth()  # LAMBAPI_SECRET_KEY を自動使用
-   ```
-
-2. **明示的な secret_key 指定** (開発・テスト用):
-   ```python
-   # 開発環境やテストでの明示的指定
-   auth = DynamoDBAuth(secret_key="development-key-do-not-use-in-production")
-   ```
-
-3. **強力な秘密鍵を生成**:
-   ```bash
-   # 安全なランダムキー生成
-   python -c "import secrets; print(secrets.token_urlsafe(32))"
-   ```
-
-4. **秘密鍵の管理**:
-   - **絶対にソースコードに含めない**
-   - 環境変数または AWS Systems Manager Parameter Store を使用
-   - 定期的にローテーションを実施
-
-5. **HTTPS の使用**: 本番環境では必ず HTTPS を使用
-
-6. **適切な権限設定**: DynamoDB IAM ロールの最小権限の原則
-
-## トラブルシューティング
-
-### よくあるエラー
-
-#### ImportError: 認証依存関係がない
-
-```python
-# 解決方法
-pip install lambapi[auth]
-```
-
-#### DynamoDB 接続エラー
-
-```python
-# ローカル開発用設定
-class User(BaseUser):
-    class Meta(BaseUser.Meta):
-        endpoint_url = "http://localhost:8000"
-```
-
-#### JWT デコードエラー
-
-```python
-# secret_key の一致を確認
-# トークンの有効期限を確認
-```
-
-### ログの有効化
-
-```python
-class User(BaseUser):
-    class Meta(BaseUser.Meta):
-        enable_auth_logging = True
-
-# ログ出力例
-# Auth Event: {"event": "login_success", "timestamp": "2024-01-01T12:00:00", "user_id": "user123"}
-```
-
-## サンプルコード
-
-### 完全な認証付き API
-
-```python
-import os
-from lambapi import API, create_lambda_handler
-from lambapi.auth import BaseUser, DynamoDBAuth, create_auth_router
-from lambapi.exceptions import AuthenticationError
-
-class User(BaseUser):
-    class Meta(BaseUser.Meta):
-        table_name = os.getenv("DYNAMODB_TABLE", "users")
-        secret_key = os.getenv("JWT_SECRET", "dev-secret")
-        expiration = 3600  # 1 時間
-        is_email_login = True
-        is_role_permission = True
-        enable_auth_logging = True
-
-    def __init__(self, id, password, name="", email="", role="user"):
-        super().__init__(id, password)
-        self.name = name
-        self.email = email
-        self.role = role
+    name: str
+    email: str
+    role: str = "user"
 
 def create_app(event, context):
     app = API(event, context)
 
     # 認証システムの初期化
-    auth = DynamoDBAuth(User)
-
-    # 認証エンドポイントの追加
-    auth_router = create_auth_router(auth)
-    app.include_router(auth_router)
-
-    # パブリックエンドポイント
-    @app.get("/")
-    def public_endpoint():
-        return {"message": "Public access"}
+    auth = DynamoDBAuth(
+        table_name="users",
+        user_model=User,
+        secret_key="your-secure-secret-key",  # 環境変数推奨
+        region_name="ap-northeast-1"
+    )
+    app.include_auth(auth)
 
     # 認証が必要なエンドポイント
     @app.get("/profile")
-    def get_profile(request):
-        user = auth.get_authenticated_user(request)
-        return {"profile": user.to_dict()}
+    def get_profile(current_user: User = CurrentUser()):
+        return {
+            "id": current_user.id,
+            "name": current_user.name,
+            "email": current_user.email,
+            "role": current_user.role
+        }
 
-    # ロール制限エンドポイント
-    @app.get("/admin/stats")
-    @auth.require_role("admin")
-    def admin_stats(user, request):
-        return {"stats": "admin only data", "user": user.id}
+    # ロール制限付きエンドポイント
+    @app.delete("/admin/users/{user_id}")
+    def delete_user(
+        user_id: str = Path(),
+        admin_user: User = RequireRole(roles=["admin"])
+    ):
+        return {
+            "message": f"User {user_id} deleted",
+            "deleted_by": admin_user.name
+        }
 
-    # カスタム認証チェック
-    @app.put("/profile")
-    def update_profile(request):
-        try:
-            user = auth.get_authenticated_user(request)
-            data = request.json()
-
-            # プロフィール更新ロジック
-            user.update_attributes(name=data.get("name"))
-
-            return {"message": "Profile updated"}
-        except AuthenticationError:
-            return {"error": "Authentication required"}, 401
+    # オプショナル認証
+    @app.get("/posts")
+    def get_posts(user: Optional[User] = OptionalAuth()):
+        if user:
+            return {
+                "posts": f"personalized for {user.name}",
+                "user_role": user.role
+            }
+        return {"posts": "public content"}
 
     return app
 
 lambda_handler = create_lambda_handler(create_app)
 ```
 
-### テスト用コード
+### 2. 複数ロール制限
 
 ```python
-import unittest
-import json
-from lambapi import Request
-from lambapi.auth import BaseUser, DynamoDBAuth
+@app.post("/admin/reports")
+def create_report(
+    report_data: ReportRequest,  # 自動推論：Body パラメータ
+    admin_user: User = RequireRole(roles=["admin", "manager"])
+):
+    """管理者またはマネージャーのみ実行可能"""
+    return {
+        "message": "Report created",
+        "created_by": admin_user.name,
+        "user_role": admin_user.role
+    }
 
-class TestAuth(unittest.TestCase):
-    def setUp(self):
-        self.auth = DynamoDBAuth(BaseUser)
-
-    def test_user_signup(self):
-        # ユーザー登録テスト
-        event = {
-            "body": json.dumps({
-                "id": "testuser",
-                "password": "password123"
-            })
-        }
-        request = Request(event)
-        result = self.auth.signup(request)
-
-        self.assertEqual(result["user_id"], "testuser")
-        self.assertIn("message", result)
+@app.get("/super-admin/system")
+def get_system_info(
+    super_admin: User = RequireRole(roles=["super_admin"])
+):
+    """スーパー管理者のみ実行可能"""
+    return {
+        "system_info": "sensitive data",
+        "accessed_by": super_admin.name
+    }
 ```
 
-## 参考資料
+### 3. 混合認証パターン
 
-- [JWT 公式サイト](https://jwt.io/)
-- [DynamoDB 開発者ガイド](https://docs.aws.amazon.com/dynamodb/)
-- [bcrypt ライブラリ](https://pypi.org/project/bcrypt/)
-- [LambAPI API リファレンス](api/api.md)
+```python
+@app.put("/posts/{post_id}")
+def update_post(
+    post_id: str = Path(),
+    post_data: UpdatePostRequest = Body(),
+    current_user: User = CurrentUser(),
+    version: str = Query(default="v1")
+):
+    """投稿を更新（認証必須）"""
+    # 投稿の所有者チェックまたは管理者権限チェック
+    if current_user.role not in ["admin", "moderator"]:
+        # 所有者チェックのロジック
+        pass
+
+    return {
+        "message": "Post updated",
+        "post_id": post_id,
+        "updated_by": current_user.name,
+        "version": version
+    }
+
+@app.get("/posts/{post_id}/comments")
+def get_comments(
+    post_id: str = Path(),
+    user: Optional[User] = OptionalAuth(),
+    include_private: bool = Query(default=False)
+):
+    """コメント取得（認証オプショナル）"""
+    comments = get_comments_by_post_id(post_id)
+
+    # 認証済みユーザーの場合は追加情報を含める
+    if user:
+        comments = add_user_specific_info(comments, user)
+
+        # プライベートコメントも含める（ロール制限）
+        if include_private and user.role in ["admin", "moderator"]:
+            comments.extend(get_private_comments(post_id))
+
+    return {
+        "post_id": post_id,
+        "comments": comments,
+        "viewer": user.name if user else "anonymous",
+        "total": len(comments)
+    }
+```
+
+## カスタムユーザーモデル
+
+### データクラス版
+
+```python
+from dataclasses import dataclass
+from lambapi.auth import BaseUser
+from typing import Optional, List
+from datetime import datetime
+
+@dataclass
+class CustomUser(BaseUser):
+    name: str
+    email: str
+    role: str = "user"
+    profile: Optional[dict] = None
+    permissions: Optional[List[str]] = None
+    last_login: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.created_at is None:
+            self.created_at = datetime.now().isoformat()
+
+    def has_permission(self, permission: str) -> bool:
+        """カスタム権限チェック"""
+        if self.role == "admin":
+            return True
+        return self.permissions and permission in self.permissions
+
+# 使用例
+def create_app(event, context):
+    app = API(event, context)
+
+    auth = DynamoDBAuth(
+        table_name="custom_users",
+        user_model=CustomUser,
+        secret_key=os.environ["LAMBAPI_SECRET_KEY"],
+        region_name="ap-northeast-1"
+    )
+    app.include_auth(auth)
+
+    @app.get("/dashboard")
+    def get_dashboard(user: CustomUser = CurrentUser()):
+        return {
+            "dashboard": f"Welcome {user.name}",
+            "role": user.role,
+            "permissions": user.permissions,
+            "profile": user.profile,
+            "last_login": user.last_login
+        }
+
+    @app.post("/admin/permissions")
+    def manage_permissions(
+        permission_data: PermissionRequest,
+        admin: CustomUser = RequireRole(roles=["admin"])
+    ):
+        """権限管理（管理者のみ）"""
+        return {
+            "message": "Permissions updated",
+            "updated_by": admin.name,
+            "data": permission_data
+        }
+```
+
+### Pydantic 版
+
+```python
+try:
+    from pydantic import BaseModel, field_validator, EmailStr
+
+    class PydanticUser(BaseUser, BaseModel):
+        name: str
+        email: EmailStr
+        role: str = "user"
+        profile: Optional[dict] = None
+        permissions: Optional[List[str]] = None
+
+        @field_validator('role')
+        @classmethod
+        def validate_role(cls, v):
+            allowed_roles = ["user", "admin", "moderator", "super_admin"]
+            if v not in allowed_roles:
+                raise ValueError(f'Role must be one of: {allowed_roles}')
+            return v
+
+        @field_validator('email')
+        @classmethod
+        def validate_email_format(cls, v):
+            # 追加のメール検証ロジック
+            return v.lower()
+
+    def create_app(event, context):
+        app = API(event, context)
+
+        auth = DynamoDBAuth(
+            table_name="pydantic_users",
+            user_model=PydanticUser,
+            secret_key=os.environ["LAMBAPI_SECRET_KEY"]
+        )
+        app.include_auth(auth)
+
+        @app.get("/profile")
+        def get_profile(user: PydanticUser = CurrentUser()):
+            return user.model_dump()  # Pydantic のシリアライゼーション
+
+        return app
+
+except ImportError:
+    # Pydantic が利用できない場合
+    PydanticUser = None
+```
+
+## 認証フロー
+
+### 1. ユーザー登録とログイン
+
+```python
+@dataclass
+class SignupRequest:
+    name: str
+    email: str
+    password: str
+    role: str = "user"
+
+@dataclass
+class LoginRequest:
+    email: str
+    password: str
+
+def create_app(event, context):
+    app = API(event, context)
+
+    auth = DynamoDBAuth(
+        table_name="users",
+        user_model=User,
+        secret_key=os.environ["LAMBAPI_SECRET_KEY"]
+    )
+    app.include_auth(auth)
+
+    # ユーザー登録
+    @app.post("/auth/signup")
+    def signup(request: SignupRequest):
+        """ユーザー登録（自動推論：Body パラメータ）"""
+        try:
+            user = auth.create_user(
+                user_id=request.email,  # メールを ID として使用
+                password=request.password,
+                name=request.name,
+                email=request.email,
+                role=request.role
+            )
+            return {
+                "message": "User created successfully",
+                "user_id": user.id
+            }
+        except ValueError as e:
+            return Response({"error": str(e)}, status_code=400)
+
+    # ログイン
+    @app.post("/auth/login")
+    def login(request: LoginRequest):
+        """ユーザーログイン"""
+        try:
+            token = auth.authenticate_user(
+                user_id=request.email,
+                password=request.password
+            )
+            return {
+                "message": "Login successful",
+                "access_token": token,
+                "token_type": "bearer"
+            }
+        except ValueError as e:
+            return Response({"error": str(e)}, status_code=401)
+
+    # ログアウト
+    @app.post("/auth/logout")
+    def logout(current_user: User = CurrentUser()):
+        """ログアウト"""
+        auth.revoke_user_token(current_user.id)
+        return {"message": "Logout successful"}
+
+    # プロフィール更新
+    @app.put("/profile")
+    def update_profile(
+        profile_data: UpdateProfileRequest,
+        current_user: User = CurrentUser()
+    ):
+        """プロフィール更新"""
+        # ユーザー情報の更新ロジック
+        current_user.name = profile_data.name
+        current_user.email = profile_data.email
+
+        auth.update_user(current_user)
+
+        return {
+            "message": "Profile updated",
+            "user": {
+                "id": current_user.id,
+                "name": current_user.name,
+                "email": current_user.email
+            }
+        }
+```
+
+## エラーハンドリング
+
+### カスタム認証エラーハンドラー
+
+```python
+from lambapi.exceptions import AuthenticationError, AuthorizationError
+
+def create_app(event, context):
+    app = API(event, context)
+
+    # 認証エラーのカスタムハンドラー
+    @app.error_handler(AuthenticationError)
+    def handle_auth_error(error, request, context):
+        return Response({
+            "error": "AUTHENTICATION_ERROR",
+            "message": "認証が必要です",
+            "details": str(error)
+        }, status_code=401)
+
+    @app.error_handler(AuthorizationError)
+    def handle_authz_error(error, request, context):
+        return Response({
+            "error": "AUTHORIZATION_ERROR",
+            "message": "権限が不足しています",
+            "details": str(error)
+        }, status_code=403)
+
+    # 認証設定
+    auth = DynamoDBAuth(
+        table_name="users",
+        user_model=User,
+        secret_key=os.environ["LAMBAPI_SECRET_KEY"]
+    )
+    app.include_auth(auth)
+
+    return app
+```
+
+## テスト
+
+### 認証システムのテスト
+
+```python
+import json
+import jwt
+import pytest
+from app import lambda_handler
+
+class TestAuthentication:
+    def test_current_user_annotation(self):
+        """CurrentUser アノテーションのテスト"""
+        # まずユーザーを作成してログイン
+        signup_event = {
+            'httpMethod': 'POST',
+            'path': '/auth/signup',
+            'body': json.dumps({
+                'name': 'Test User',
+                'email': 'test@example.com',
+                'password': 'password123'
+            }),
+            'headers': {'Content-Type': 'application/json'}
+        }
+
+        result = lambda_handler(signup_event, None)
+        assert result['statusCode'] == 200
+
+        # ログイン
+        login_event = {
+            'httpMethod': 'POST',
+            'path': '/auth/login',
+            'body': json.dumps({
+                'email': 'test@example.com',
+                'password': 'password123'
+            }),
+            'headers': {'Content-Type': 'application/json'}
+        }
+
+        login_result = lambda_handler(login_event, None)
+        login_body = json.loads(login_result['body'])
+        token = login_body['access_token']
+
+        # 認証が必要なエンドポイントにアクセス
+        profile_event = {
+            'httpMethod': 'GET',
+            'path': '/profile',
+            'headers': {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json'
+            }
+        }
+
+        profile_result = lambda_handler(profile_event, None)
+        assert profile_result['statusCode'] == 200
+
+        profile_body = json.loads(profile_result['body'])
+        assert profile_body['name'] == 'Test User'
+
+    def test_require_role_annotation(self):
+        """RequireRole アノテーションのテスト"""
+        # 管理者ユーザーでログイン（事前にセットアップ）
+        admin_token = create_admin_token()  # ヘルパー関数
+
+        delete_event = {
+            'httpMethod': 'DELETE',
+            'path': '/admin/users/test-user-id',
+            'headers': {
+                'Authorization': f'Bearer {admin_token}',
+                'Content-Type': 'application/json'
+            }
+        }
+
+        result = lambda_handler(delete_event, None)
+        assert result['statusCode'] == 200
+
+    def test_optional_auth_annotation(self):
+        """OptionalAuth アノテーションのテスト"""
+        # 認証なしでアクセス
+        public_event = {
+            'httpMethod': 'GET',
+            'path': '/posts',
+            'headers': {'Content-Type': 'application/json'}
+        }
+
+        result = lambda_handler(public_event, None)
+        assert result['statusCode'] == 200
+
+        body = json.loads(result['body'])
+        assert body['posts'] == 'public content'
+
+        # 認証ありでアクセス
+        token = create_user_token()  # ヘルパー関数
+        auth_event = {
+            'httpMethod': 'GET',
+            'path': '/posts',
+            'headers': {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json'
+            }
+        }
+
+        auth_result = lambda_handler(auth_event, None)
+        auth_body = json.loads(auth_result['body'])
+        assert 'personalized' in auth_body['posts']
+```
+
+## デプロイメント
+
+### DynamoDB テーブル設定
+
+```yaml
+# CloudFormation/SAM template
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}-users"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+```
+
+### 環境変数設定
+
+```bash
+# 本番環境での環境変数
+export LAMBAPI_SECRET_KEY="your-very-secure-secret-key-here"
+export DYNAMODB_TABLE_NAME="prod-users"
+export AWS_DEFAULT_REGION="ap-northeast-1"
+```
+
+## まとめ
+
+lambapi v0.2.x の認証システムの特徴：
+
+### 🎯 主な利点
+
+1. **統合アノテーションシステム**
+   - 認証もパラメータの一種として扱う
+   - 一貫した API デザイン
+
+2. **簡潔な記法**
+   - `CurrentUser()`, `RequireRole()`, `OptionalAuth()`
+   - 従来のデコレータ地獄を解消
+
+3. **型安全性**
+   - User オブジェクトの型が保証される
+   - IDE の支援を受けられる
+
+4. **柔軟性**
+   - データクラスと Pydantic 両対応
+   - カスタムユーザーモデルに対応
+
+### 🚀 次のステップ
+
+- [デプロイメント](deployment.md) - 本番環境での運用
+- [API リファレンス](../api/api.md) - 詳細な API 仕様

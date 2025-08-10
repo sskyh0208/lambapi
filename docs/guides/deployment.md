@@ -1,6 +1,6 @@
-# Lambda での使用方法
+# デプロイメント
 
-lambapi アプリケーションを AWS Lambda で使用する際の設定方法について説明します。
+lambapi v0.2.x アプリケーションを AWS Lambda で本番運用する際の設定方法とベストプラクティスについて説明します。
 
 ## ZIP アーカイブでの使用
 
@@ -18,18 +18,47 @@ lambapi アプリケーションを AWS Lambda で使用する際の設定方法
 
 ```python title="app.py"
 from lambapi import API, create_lambda_handler
+from lambapi.annotations import Path, Query, Body, CurrentUser
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class User:
+    name: str
+    email: str
+    age: Optional[int] = None
 
 def create_app(event, context):
     app = API(event, context)
-    
+
     @app.get("/")
     def hello():
-        return {"message": "Hello from Lambda!"}
-    
+        return {"message": "Hello from Lambda!", "version": "v0.2.x"}
+
+    # v0.2.x 自動推論を活用
     @app.get("/users/{user_id}")
-    def get_user(user_id: str):
+    def get_user(user_id: int):  # 自動的に Path パラメータ
         return {"user_id": user_id, "name": f"User {user_id}"}
-    
+
+    # アノテーション版
+    @app.get("/api/users/{user_id}")
+    def get_user_explicit(user_id: int = Path()):
+        return {"user_id": user_id, "name": f"User {user_id}"}
+
+    # データクラス自動推論
+    @app.post("/users")
+    def create_user(user: User):  # 自動的に Body パラメータ
+        return {"message": "User created", "user": user}
+
+    # 混合アノテーション
+    @app.get("/search")
+    def search_users(
+        q: str = Query(),
+        limit: int = Query(default=10),
+        sort: str = Query(default="name")
+    ):
+        return {"query": q, "limit": limit, "sort": sort}
+
     return app
 
 # ★重要: この関数名がハンドラー設定に対応
@@ -174,23 +203,58 @@ lambapi は以下の形式の Lambda イベントを処理します：
 ```python title="app.py"
 import os
 from lambapi import API, create_lambda_handler
+from lambapi.annotations import Path, Query, CurrentUser, RequireRole
+from lambapi.auth import DynamoDBAuth, BaseUser
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class User(BaseUser):
+    name: str
+    email: str
+    role: str = "user"
 
 def create_app(event, context):
     app = API(event, context)
-    
+
     # 環境別設定
-    if os.getenv("ENVIRONMENT") == "development":
+    environment = os.getenv("ENVIRONMENT", "development")
+    if environment == "development":
         app.enable_cors(origins="*")
     else:
         app.enable_cors(origins=["https://myapp.com"])
-    
+
+    # 本番環境では認証システムを設定
+    if environment == "production":
+        auth = DynamoDBAuth(
+            table_name=os.getenv("USER_TABLE", "prod-users"),
+            user_model=User,
+            secret_key=os.getenv("LAMBAPI_SECRET_KEY"),
+            region_name=os.getenv("AWS_DEFAULT_REGION", "ap-northeast-1")
+        )
+        app.include_auth(auth)
+
     @app.get("/")
     def root():
         return {
             "message": "Hello from Lambda!",
-            "environment": os.getenv("ENVIRONMENT", "development")
+            "environment": environment,
+            "version": "v0.2.x"
         }
-    
+
+    # 認証が必要なエンドポイント（本番のみ）
+    @app.get("/profile")
+    def get_profile(current_user: User = CurrentUser()):
+        return {"user": current_user}
+
+    # ロール制限エンドポイント
+    @app.delete("/admin/users/{user_id}")
+    def delete_user(
+        user_id: int = Path(),
+        admin_user: User = RequireRole(roles=["admin"])
+    ):
+        return {"deleted": user_id, "by": admin_user.name}
+
     return app
 
 lambda_handler = create_lambda_handler(create_app)
@@ -204,6 +268,11 @@ Lambda 関数の設定で以下の環境変数を設定：
 # 基本設定
 ENVIRONMENT=production
 LOG_LEVEL=INFO
+
+# lambapi v0.2.x 認証システム設定
+LAMBAPI_SECRET_KEY=your-very-secure-secret-key
+USER_TABLE=prod-users
+AWS_DEFAULT_REGION=ap-northeast-1
 
 # アプリケーション固有の設定
 DATABASE_URL=your-database-url
@@ -236,7 +305,7 @@ API_KEY=your-api-key
     └── app.py
 ```
 
-**❌ 間違い:** `ハンドラー: app.lambda_handler`  
+**❌ 間違い:** `ハンドラー: app.lambda_handler`
 **✅ 正しい:** `ハンドラー: src.app.lambda_handler`
 
 ### ECR デプロイでの問題
@@ -263,7 +332,7 @@ CMD ["app.lambda_handler"]         # Lambda 形式
     └── app.py
 ```
 
-**❌ 間違い:** `CMD ["app.lambda_handler"]`  
+**❌ 間違い:** `CMD ["app.lambda_handler"]`
 **✅ 正しい:** `CMD ["src.app.lambda_handler"]`
 
 ## デバッグとテスト
@@ -303,7 +372,7 @@ except Exception as e:
 ```python title="app.py"
 def create_app(event, context):
     app = API(event, context)
-    
+
     @app.get("/debug")
     def debug_info():
         return {
@@ -319,7 +388,7 @@ def create_app(event, context):
                 "headers": list(event.get('headers', {}).keys())
             }
         }
-    
+
     return app
 ```
 
@@ -342,12 +411,12 @@ def get_database_connection():
 
 def create_app(event, context):
     app = API(event, context)
-    
+
     @app.get("/users")
     def get_users():
         db = get_database_connection()  # 既存接続を再利用
         return {"users": []}
-    
+
     return app
 
 lambda_handler = create_lambda_handler(create_app)
@@ -356,7 +425,7 @@ lambda_handler = create_lambda_handler(create_app)
 ### メモリサイズの調整
 
 | 用途 | 推奨メモリサイズ |
-|------|-----------------| 
+|------|-----------------|
 | 軽量 API | 256MB - 512MB |
 | 標準的な API | 512MB - 1024MB |
 | データ処理含む API | 1024MB - 2048MB |

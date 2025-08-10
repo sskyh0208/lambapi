@@ -8,8 +8,7 @@ import json
 import datetime
 import logging
 import hashlib
-from typing import Dict, Any, Optional, Type, List, Union, Callable
-from functools import wraps
+from typing import Dict, Any, Optional, Type
 
 try:
     import boto3
@@ -31,7 +30,6 @@ from .base_user import BaseUser
 from ..request import Request
 from ..exceptions import (
     AuthenticationError,
-    AuthorizationError,
     ValidationError,
     ConflictError,
     NotFoundError,
@@ -423,62 +421,3 @@ class DynamoDBAuth:
             raise AuthenticationError("セッションが無効です")
 
         return user
-
-    def require_role(self, required_roles: Union[str, List[str]]) -> Callable:
-        """ロールベースの認証デコレータ"""
-        if isinstance(required_roles, str):
-            required_roles = [required_roles]
-
-        def decorator(func: Callable) -> Callable:
-            @wraps(func)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
-                import inspect
-
-                sig = inspect.signature(func)
-
-                # リクエストオブジェクトを取得（kwargs から）
-                request = kwargs.get("request")
-                if not request:
-                    # args からも探してみる
-                    for arg in args:
-                        if hasattr(arg, "headers") and hasattr(
-                            arg, "json"
-                        ):  # Request オブジェクトの特徴
-                            request = arg
-                            break
-
-                if not request:
-                    # リクエストオブジェクトが見つからない場合、現在のコンテキストから取得を試す
-                    import sys
-
-                    frame = sys._getframe()
-                    while frame:
-                        if "request" in frame.f_locals:
-                            request = frame.f_locals["request"]
-                            if hasattr(request, "headers") and hasattr(request, "json"):
-                                break
-                        frame = frame.f_back  # type: ignore
-
-                    if not request:
-                        raise AuthenticationError("リクエストオブジェクトが見つかりません")
-
-                # ユーザー認証
-                user = self.get_authenticated_user(request)
-
-                # ロール権限チェック
-                if self.user_model._is_role_permission_enabled():
-                    user_role = getattr(user, "role", None)
-                    if user_role not in required_roles:
-                        raise AuthorizationError(f"必要なロール: {', '.join(required_roles)}")
-
-                # user パラメータを最初の引数として注入
-                if "user" in sig.parameters:
-                    # user を最初の引数として渡し、残りの引数を続ける
-                    return func(user, *args, **kwargs)
-                else:
-                    # user パラメータがない場合はそのまま実行
-                    return func(*args, **kwargs)
-
-            return wrapper
-
-        return decorator

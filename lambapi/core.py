@@ -492,7 +492,7 @@ class API(BaseRouterMixin):
                 raise e
             return None
 
-    def _get_auth_instance(self):
+    def _get_auth_instance(self) -> Any:
         """DynamoDBAuth インスタンスを取得（設定されている場合）"""
         return self._auth_instance
 

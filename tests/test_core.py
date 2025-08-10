@@ -111,18 +111,26 @@ class TestAPI:
         assert '"offset":10' in body
         assert '"active":true' in body
 
-    def test_post_request(self):
-        """POST リクエストのテスト"""
+    def test_post_request_new_style(self):
+        """POST リクエストのテスト（新アノテーション方式）"""
         import json
+        from dataclasses import dataclass
+
+        @dataclass
+        class UserData:
+            name: str
+            age: int
 
         body_data = {"name": "John", "age": 30}
         event = self.create_test_event(method="POST", path="/users", body=json.dumps(body_data))
         app = API(event, None)
 
         @app.post("/users")
-        def create_user(request):
-            user_data = request.json()
-            return Response({"message": "Created", "user": user_data}, status_code=201)
+        def create_user(user: UserData):
+            return Response(
+                {"message": "Created", "user": {"name": user.name, "age": user.age}},
+                status_code=201,
+            )
 
         result = app.handle_request()
 
@@ -275,38 +283,6 @@ class TestAPI:
         assert '"limit":10' in body
         assert '"sort":"date"' in body
 
-    def test_request_object_access(self):
-        """Request オブジェクトアクセスのテスト"""
-        import json
-
-        body_data = {"test": "data"}
-        event = self.create_test_event(
-            method="POST", path="/test", query_params={"param": "value"}, body=json.dumps(body_data)
-        )
-        event["headers"]["Custom-Header"] = "custom-value"
-        app = API(event, None)
-
-        @app.post("/test")
-        def test_request(request):
-            return {
-                "method": request.method,
-                "path": request.path,
-                "query_params": request.query_params,
-                "headers": dict(request.headers),
-                "json_data": request.json(),
-                "body": request.body,
-            }
-
-        result = app.handle_request()
-
-        assert result["statusCode"] == 200
-        body = json.loads(result["body"])
-        assert body["method"] == "POST"
-        assert body["path"] == "/test"
-        assert body["query_params"]["param"] == "value"
-        assert body["headers"]["Custom-Header"] == "custom-value"
-        assert body["json_data"] == body_data
-
     def test_response_object_creation(self):
         """Response オブジェクト作成のテスト"""
         event = self.create_test_event()
@@ -327,7 +303,7 @@ class TestAPI:
         assert '"message":"Custom response"' in result["body"]
 
     def test_different_http_methods(self):
-        """異なる HTTP メソッドのテスト"""
+        """異なる HTTP メソッドのテスト（新アノテーション方式）"""
         methods_and_paths = [
             ("GET", "/get-test"),
             ("POST", "/post-test"),
@@ -349,13 +325,13 @@ class TestAPI:
             elif method == "POST":
 
                 @app.post(path)
-                def handler(request):
+                def handler():
                     return {"method": method}
 
             elif method == "PUT":
 
                 @app.put(path)
-                def handler(request):
+                def handler():
                     return {"method": method}
 
             elif method == "DELETE":
@@ -367,7 +343,7 @@ class TestAPI:
             elif method == "PATCH":
 
                 @app.patch(path)
-                def handler(request):
+                def handler():
                     return {"method": method}
 
             result = app.handle_request()

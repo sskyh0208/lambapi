@@ -12,30 +12,34 @@ from dataclasses import dataclass
 @dataclass
 class ParameterAnnotation:
     """パラメータアノテーションのベースクラス"""
+
     pass
 
 
 # パラメータソース系アノテーション
-@dataclass  
+@dataclass
 class Body(ParameterAnnotation):
     """リクエストボディからパラメータを取得"""
+
     pass
 
 
 @dataclass
 class Path(ParameterAnnotation):
     """パスパラメータからパラメータを取得"""
+
     pass
 
 
 @dataclass
 class Query(ParameterAnnotation):
     """クエリパラメータからパラメータを取得
-    
+
     Args:
         default: デフォルト値
         alias: クエリパラメータ名のエイリアス
     """
+
     default: Any = None
     alias: Optional[str] = None
 
@@ -43,10 +47,11 @@ class Query(ParameterAnnotation):
 @dataclass
 class Header(ParameterAnnotation):
     """ヘッダーからパラメータを取得
-    
+
     Args:
         alias: ヘッダー名のエイリアス
     """
+
     alias: Optional[str] = None
 
 
@@ -54,29 +59,32 @@ class Header(ParameterAnnotation):
 @dataclass
 class AuthAnnotation(ParameterAnnotation):
     """認証アノテーションのベースクラス"""
+
     pass
 
 
 @dataclass
 class CurrentUser(AuthAnnotation):
     """現在のログイン済みユーザーを取得
-    
+
     JWT トークンが必要で、有効でない場合は 401 エラーを返します。
     """
+
     pass
 
 
 @dataclass
 class RequireRole(AuthAnnotation):
     """指定されたロールを持つユーザーを取得
-    
+
     JWT トークンが必要で、指定されたロールを持たない場合は 403 エラーを返します。
-    
+
     Args:
         roles: 必要なロール（文字列または文字列のリスト）
     """
+
     roles: Union[str, List[str]]
-    
+
     def __post_init__(self) -> None:
         if isinstance(self.roles, str):
             self.roles = [self.roles]
@@ -85,10 +93,11 @@ class RequireRole(AuthAnnotation):
 @dataclass
 class OptionalAuth(AuthAnnotation):
     """オプショナルな認証ユーザーを取得
-    
+
     JWT トークンがある場合は検証してユーザーを返し、ない場合は None を返します。
     エラーは発生しません。
     """
+
     pass
 
 
