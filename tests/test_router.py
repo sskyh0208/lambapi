@@ -306,30 +306,14 @@ class TestRouter:
         assert router.routes[1].handler == handler2
 
     def test_router_with_request_response_formats(self):
-        """リクエスト・レスポンス形式指定のテスト"""
-        from dataclasses import dataclass
-
-        @dataclass
-        class UserRequest:
-            name: str
-            age: int
-
-        @dataclass
-        class UserResponse:
-            id: int
-            name: str
-            age: int
-
+        """リクエスト・レスポンス形式指定のテスト - request_format/response_format が削除されたため簡素化"""
         router = Router()
 
-        @router.post("/users", request_format=UserRequest, response_format=UserResponse)
+        @router.post("/users")
         def create_user(request):
             return {"created": True}
 
         assert len(router.routes) == 1
-        route = router.routes[0]
-        assert route.request_format == UserRequest
-        assert route.response_format == UserResponse
 
     def test_empty_router_include(self):
         """空のルーター統合のテスト"""

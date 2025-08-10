@@ -31,10 +31,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -48,9 +46,7 @@ class TestBaseRouterMixin:
         assert call_args[0] == "/test"  # path
         assert call_args[1] == "GET"  # method
         assert call_args[2] == test_handler  # handler
-        assert call_args[3] is None  # request_format
-        assert call_args[4] is None  # response_format
-        assert call_args[5] is None  # cors
+        assert call_args[3] is None  # cors
 
     def test_get_decorator_with_default_path(self):
         """GET デコレータのデフォルトパステスト"""
@@ -59,10 +55,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -93,17 +87,13 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
 
-        @router.get(
-            "/users", request_format=RequestFormat, response_format=ResponseFormat, cors=cors_config
-        )
+        @router.get("/users", cors=cors_config)
         def get_users():
             return {"users": []}
 
@@ -112,9 +102,7 @@ class TestBaseRouterMixin:
         assert call_args[0] == "/users"
         assert call_args[1] == "GET"
         assert call_args[2] == get_users
-        assert call_args[3] == RequestFormat
-        assert call_args[4] == ResponseFormat
-        assert call_args[5] == cors_config
+        assert call_args[3] == cors_config
 
     def test_post_decorator_basic(self):
         """POST デコレータの基本テスト"""
@@ -123,10 +111,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -148,10 +134,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -173,10 +157,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -198,10 +180,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -223,10 +203,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -279,9 +257,7 @@ class TestBaseRouterMixin:
         """デコレータが元の関数を返すことをテスト"""
 
         class MockRouter(BaseRouterMixin):
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
+            def _add_route(self, path, method, handler, cors=None):
                 return handler  # 元の関数を返す
 
         router = MockRouter()
@@ -300,10 +276,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -331,67 +305,38 @@ class TestBaseRouterMixin:
 
         assert len(router.calls) == 4
 
-        cors_values = [call[5] for call in router.calls]
+        cors_values = [call[3] for call in router.calls]
         assert True in cors_values
         assert False in cors_values
         assert cors_config in cors_values
         assert None in cors_values
 
     def test_request_response_format_parameters(self):
-        """リクエスト・レスポンス形式パラメータのテスト"""
-        from dataclasses import dataclass
-
-        @dataclass
-        class UserRequest:
-            name: str
-            email: str
-
-        @dataclass
-        class UserResponse:
-            id: int
-            name: str
-            email: str
+        """リクエスト・レスポンス形式パラメータのテスト - request_format/response_format が削除されたため簡素化"""
 
         class MockRouter(BaseRouterMixin):
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
 
-        # request_format のみ
-        @router.post("/request-only", request_format=UserRequest)
+        @router.post("/request-only")
         def handler1(request):
             return {}
 
-        # response_format のみ
-        @router.get("/response-only", response_format=UserResponse)
+        @router.get("/response-only")
         def handler2():
             return {}
 
-        # 両方指定
-        @router.put("/both", request_format=UserRequest, response_format=UserResponse)
+        @router.put("/both")
         def handler3(request):
             return {}
 
         assert len(router.calls) == 3
-
-        # request_format のみのケース
-        assert router.calls[0][3] == UserRequest
-        assert router.calls[0][4] is None
-
-        # response_format のみのケース
-        assert router.calls[1][3] is None
-        assert router.calls[1][4] == UserResponse
-
-        # 両方指定のケース
-        assert router.calls[2][3] == UserRequest
-        assert router.calls[2][4] == UserResponse
 
     def test_path_parameter_variations(self):
         """パスパラメータのバリエーションテスト"""
@@ -400,10 +345,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -443,10 +386,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router = MockRouter()
@@ -479,16 +420,12 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.routes = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
+            def _add_route(self, path, method, handler, cors=None):
                 # カスタム実装
                 route_info = {
                     "path": path,
                     "method": method,
                     "handler": handler,
-                    "request_format": request_format,
-                    "response_format": response_format,
                     "cors": cors,
                 }
                 self.routes.append(route_info)
@@ -513,10 +450,8 @@ class TestBaseRouterMixin:
             def __init__(self):
                 self.calls = []
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
-                self.calls.append((path, method, handler, request_format, response_format, cors))
+            def _add_route(self, path, method, handler, cors=None):
+                self.calls.append((path, method, handler, cors))
                 return handler
 
         router1 = MockRouter()
@@ -540,9 +475,7 @@ class TestBaseRouterMixin:
         """_add_route でのエラーハンドリングテスト"""
 
         class FailingRouter(BaseRouterMixin):
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
+            def _add_route(self, path, method, handler, cors=None):
                 raise RuntimeError("Route addition failed")
 
         router = FailingRouter()
@@ -555,21 +488,17 @@ class TestBaseRouterMixin:
                 return {}
 
     def test_decorator_parameter_forwarding(self):
-        """デコレータパラメータの転送テスト"""
+        """デコレータパラメータの転送テスト - request_format/response_format が削除されたため簡素化"""
 
         class ParameterCapturingRouter(BaseRouterMixin):
             def __init__(self):
                 self.captured_params = {}
 
-            def _add_route(
-                self, path, method, handler, request_format=None, response_format=None, cors=None
-            ):
+            def _add_route(self, path, method, handler, cors=None):
                 self.captured_params = {
                     "path": path,
                     "method": method,
                     "handler": handler,
-                    "request_format": request_format,
-                    "response_format": response_format,
                     "cors": cors,
                 }
                 return handler
@@ -577,9 +506,7 @@ class TestBaseRouterMixin:
         router = ParameterCapturingRouter()
         cors_config = create_cors_config(origins=["https://test.com"])
 
-        @router.post(
-            "/complex-endpoint", request_format=dict, response_format=list, cors=cors_config
-        )
+        @router.post("/complex-endpoint", cors=cors_config)
         def complex_handler(request):
             return []
 
@@ -587,6 +514,4 @@ class TestBaseRouterMixin:
         assert params["path"] == "/complex-endpoint"
         assert params["method"] == "POST"
         assert params["handler"] == complex_handler
-        assert params["request_format"] == dict
-        assert params["response_format"] == list
         assert params["cors"] == cors_config
