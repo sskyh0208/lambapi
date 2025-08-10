@@ -58,6 +58,9 @@ setup(
             "PyJWT>=2.8.0",
             "bcrypt>=4.0.0",
         ],
+        "pydantic": [
+            "pydantic>=2.0.0",
+        ],
         "dev": [
             "pytest>=6.0",
             "pytest-cov>=2.0",
@@ -67,6 +70,7 @@ setup(
             "isort>=5.0",
             "bandit[toml]>=1.7",
             "safety>=2.0",
+            "pydantic>=2.0.0",
         ],
     },
     keywords="lambda api aws serverless http rest",

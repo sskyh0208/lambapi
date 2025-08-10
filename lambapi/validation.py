@@ -2,20 +2,50 @@
 バリデーション機能
 
 リクエスト/レスポンスバリデーション機能を提供します。
+dataclass と Pydantic BaseModel の両方をサポートします。
 """
 
 from typing import Dict, Any, Type, Union, get_type_hints, get_origin, get_args, List
 from dataclasses import fields, is_dataclass, MISSING
+
+# Pydantic の動的インポート（オプショナル依存）
+try:
+    from pydantic import BaseModel, ValidationError as PydanticValidationError
+
+    PYDANTIC_AVAILABLE = True
+except ImportError:
+    BaseModel = None
+    PydanticValidationError = None
+    PYDANTIC_AVAILABLE = False
 
 # バリデーション最適化用キャッシュ
 _FIELD_INFO_CACHE: Dict[Type, Dict[str, Any]] = {}
 _TYPE_HINTS_CACHE: Dict[Type, Dict[str, Type]] = {}
 
 
+def is_pydantic_model(model_class: Type) -> bool:
+    """Pydantic BaseModel のサブクラスかどうかを判定"""
+    if not PYDANTIC_AVAILABLE:
+        return False
+    return BaseModel and issubclass(model_class, BaseModel)
+
+
 def validate_and_convert(data: Dict[str, Any], model_class: Type) -> Any:
-    """辞書データを指定されたクラスに変換・バリデーション（最適化版）"""
+    """辞書データを指定されたクラスに変換・バリデーション（dataclass と Pydantic 両対応）"""
+    # Pydantic BaseModel の場合
+    if is_pydantic_model(model_class):
+        try:
+            return model_class(**data)
+        except Exception as e:
+            if PYDANTIC_AVAILABLE and isinstance(e, PydanticValidationError):
+                raise ValueError(f"Pydantic バリデーションエラー: {str(e)}")
+            raise ValueError(f"バリデーションエラー: {str(e)}")
+
+    # dataclass の場合（既存の実装）
     if not is_dataclass(model_class):
-        raise ValueError(f"{model_class.__name__} はデータクラスである必要があります")
+        raise ValueError(
+            f"{model_class.__name__} はデータクラスまたは Pydantic BaseModel である必要があります"
+        )
 
     # キャッシュからフィールド情報を取得
     if model_class not in _FIELD_INFO_CACHE:
@@ -118,16 +148,29 @@ def _convert_value(value: Any, target_type: Type) -> Any:
 
 
 def convert_to_dict(obj: Any) -> Any:
-    """データクラスオブジェクトを辞書に変換"""
+    """データクラスまたは Pydantic モデルオブジェクトを辞書に変換"""
+    # Pydantic BaseModel の場合
+    if is_pydantic_model(type(obj)):
+        if hasattr(obj, "model_dump"):
+            return obj.model_dump()
+        elif hasattr(obj, "dict"):
+            return obj.dict()
+
+    # dataclass の場合（既存の実装）
     if is_dataclass(obj):
         result = {}
         for field in fields(obj):
             value = getattr(obj, field.name)
-            if is_dataclass(value):
+            if is_dataclass(value) or is_pydantic_model(type(value)):
                 result[field.name] = convert_to_dict(value)
             elif isinstance(value, list):
                 converted_list: List[Any] = [
-                    convert_to_dict(item) if is_dataclass(item) else item for item in value
+                    (
+                        convert_to_dict(item)
+                        if (is_dataclass(item) or is_pydantic_model(type(item)))
+                        else item
+                    )
+                    for item in value
                 ]
                 result[field.name] = converted_list
             else:
