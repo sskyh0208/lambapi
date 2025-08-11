@@ -245,7 +245,7 @@ class LambdaASGIApp:
 
 
 def create_asgi_app(
-    lambda_handler: Callable[[Dict[str, Any], Any], Dict[str, Any]]
+    lambda_handler: Callable[[Dict[str, Any], Any], Dict[str, Any]],
 ) -> LambdaASGIApp:
     """Lambda ハンドラーから ASGI アプリケーションを作成"""
     return LambdaASGIApp(lambda_handler)
