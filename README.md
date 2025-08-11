@@ -3,7 +3,7 @@
 **モダンな AWS Lambda 用 API フレームワーク**
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
-![Version](https://img.shields.io/badge/version-0.1.3-green.svg)
+![Version](https://img.shields.io/badge/version-0.2.2-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 AWS Lambda で直感的でモダンな API を構築できる軽量フレームワーク。パスパラメータとクエリパラメータの自動注入、型変換、CORS サポートを標準提供。
@@ -25,7 +25,14 @@ AWS Lambda で直感的でモダンな API を構築できる軽量フレーム�
 ### インストール
 
 ```bash
+# 基本インストール
 pip install lambapi
+
+# ローカル開発環境（uvicorn 付き）
+pip install lambapi[dev]
+
+# または uvicorn を個別にインストール
+pip install lambapi uvicorn[standard]
 ```
 
 ### 基本的な使用例
@@ -70,16 +77,32 @@ lambda_handler = create_lambda_handler(create_app)
 
 ### ローカル開発
 
+lambapi は uvicorn を使用した高性能なローカル開発サーバーを提供します。AWS Lambda と API Gateway の環境を完全に再現し、本番環境と同等の動作を保証します。
+
 ```bash
 # 新しいプロジェクトを作成
 lambapi create my-api --template basic
 
-# ローカルサーバーを起動（ホットリロード付き）
+# 高性能ローカルサーバーを起動（uvicorn + ホットリロード付き）
 lambapi serve app
 
-# ブラウザで確認
+# カスタムポート・ホスト設定
+lambapi serve app --host 0.0.0.0 --port 8080
+
+# 詳細ログでデバッグ
+lambapi serve app --debug --log-level debug
+
+# API 動作確認
 curl http://localhost:8000/
+curl -X POST http://localhost:8000/users -H "Content-Type: application/json" -d '{"name":"test"}'
 ```
+
+**uvicorn 統合の利点**:
+- 🚀 **高性能** - 非同期 ASGI ベースで高速レスポンス
+- 🔄 **ホットリロード** - コード変更を即座に反映
+- 🌐 **API Gateway 互換** - 本番環境と同等のリクエスト/レスポンス形式
+- 📊 **詳細ログ** - リクエスト詳細とエラー情報の表示
+- ⚙️ **豊富な設定** - ワーカー数、ログレベル等のカスタマイズ可能
 
 ## 📚 ドキュメント
 
