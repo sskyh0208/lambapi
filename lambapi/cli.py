@@ -6,7 +6,6 @@ pip install lambapi 後に使用可能なコマンドライン インターフ�
 import argparse
 import sys
 import os
-from .local_server import main as server_main
 from .template_loader import TemplateLoader
 
 
@@ -103,22 +102,24 @@ def main() -> None:
     serve_parser.add_argument("--port", type=int, default=8000, help="ポート番号")
     serve_parser.add_argument("--debug", action="store_true", help="詳細なデバッグ情報を表示")
 
-    # ホットリロード関連オプション
-    reload_group = serve_parser.add_mutually_exclusive_group()
-    reload_group.add_argument(
+    # uvicorn 関連オプション
+    serve_parser.add_argument(
         "--reload", action="store_true", default=True, help="ホットリロードを有効化 (デフォルト)"
     )
-    reload_group.add_argument(
+    serve_parser.add_argument(
         "--no-reload", action="store_false", dest="reload", help="ホットリロードを無効化"
     )
-
-    serve_parser.add_argument("--watch-dir", action="append", help="監視するディレクトリを追加")
-    serve_parser.add_argument("--watch-ext", action="append", help="監視するファイル拡張子を追加")
-    serve_parser.add_argument("--ignore", action="append", help="除外するパターンを追加")
+    serve_parser.add_argument("--workers", type=int, default=1, help="ワーカープロセス数")
+    serve_parser.add_argument("--access-log", action="store_true", help="アクセスログを有効化")
     serve_parser.add_argument(
-        "--reload-delay", type=float, default=1.0, help="リロード間隔の最小秒数 (デフォルト: 1.0)"
+        "--no-access-log", action="store_false", dest="access_log", help="アクセスログを無効化"
     )
-    serve_parser.add_argument("--verbose", action="store_true", help="詳細なリロードログを表示")
+    serve_parser.add_argument(
+        "--log-level",
+        choices=["critical", "error", "warning", "info", "debug", "trace"],
+        default="info",
+        help="ログレベル",
+    )
 
     # create コマンド
     create_parser = subparsers.add_parser("create", help="新しいプロジェクトを作成")
@@ -130,49 +131,27 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "serve":
-        # ローカルサーバー起動
-        if args.reload:
-            # ホットリロード機能付きサーバー
-            from .hot_reload import serve_with_reload
+        # uvicorn サーバー起動
+        from .uvicorn_server import serve_with_uvicorn
 
-            # ファイル拡張子の処理
-            watch_extensions = None
-            if args.watch_ext:
-                watch_extensions = set()
-                for ext in args.watch_ext:
-                    if not ext.startswith("."):
-                        ext = "." + ext
-                    watch_extensions.add(ext)
+        # uvicorn 設定
+        uvicorn_kwargs = {
+            "workers": args.workers,
+            "log_level": "debug" if args.debug else args.log_level,
+        }
 
-            # 除外パターンの処理
-            ignore_patterns = None
-            if args.ignore:
-                ignore_patterns = set(args.ignore)
+        # アクセスログの設定
+        if hasattr(args, "access_log"):
+            uvicorn_kwargs["access_log"] = args.access_log
 
-            serve_with_reload(
-                app_path=args.app,
-                host=args.host,
-                port=args.port,
-                debug=args.debug,
-                reload=args.reload,
-                watch_dirs=args.watch_dir,
-                watch_extensions=watch_extensions,
-                ignore_patterns=ignore_patterns,
-                reload_delay=args.reload_delay,
-                verbose=args.verbose,
-            )
-        else:
-            # 従来のサーバー（ホットリロードなし）
-            debug_args = ["--debug"] if args.debug else []
-            sys.argv = [
-                "lambapi",
-                args.app,
-                "--host",
-                args.host,
-                "--port",
-                str(args.port),
-            ] + debug_args
-            server_main()
+        serve_with_uvicorn(
+            app_path=args.app,
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            debug=args.debug,
+            **uvicorn_kwargs,
+        )
     elif args.command == "create":
         # プロジェクト作成
         create_project_with_args(args.project_name, args.template)
