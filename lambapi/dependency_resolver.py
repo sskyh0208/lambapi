@@ -65,7 +65,7 @@ class DependencyResolver:
 
             # 依存性注入パラメータの処理
             field_info = dependencies.get(param_name)
-            if field_info:
+            if field_info is not None:
                 resolved_value = self._resolve_single_dependency(
                     param_name=param_name,
                     param=param,

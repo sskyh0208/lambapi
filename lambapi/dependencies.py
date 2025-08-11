@@ -38,6 +38,14 @@ class FieldInfo:
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(default={self.default!r})"
 
+    def __bool__(self) -> bool:
+        """JSON シリアライゼーション時の問題を避けるため False を返す"""
+        return False
+
+    def __str__(self) -> str:
+        """文字列変換時はデフォルト値を返す"""
+        return str(self.default) if self.default is not ... else ""
+
 
 class QueryInfo(FieldInfo):
     """クエリパラメータの情報を保持するクラス"""
@@ -237,7 +245,7 @@ def get_function_dependencies(func: Callable) -> Dict[str, FieldInfo]:
 
     for param_name, param in sig.parameters.items():
         field_info = get_parameter_info(param)
-        if field_info:
+        if field_info is not None:
             dependencies[param_name] = field_info
 
     return dependencies
