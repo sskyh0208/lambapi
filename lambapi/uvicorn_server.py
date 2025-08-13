@@ -168,15 +168,22 @@ class LambdaASGIApp:
         asgi_headers = []
 
         # CORS ヘッダーの追加（開発用）
-        default_headers = {
-            "access-control-allow-origin": "*",
-            "access-control-allow-methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-            "access-control-allow-headers": "Content-Type, Authorization",
-        }
+        # 注意: lambapi の enable_cors() が呼ばれている場合は重複を避ける
+        cors_headers_exist = any(
+            key.lower() in ["access-control-allow-origin", "Access-Control-Allow-Origin"]
+            for key in headers.keys()
+        )
 
-        # デフォルトヘッダーを先に追加
-        for key, value in default_headers.items():
-            asgi_headers.append([key.encode("latin-1"), value.encode("latin-1")])
+        if not cors_headers_exist:
+            default_headers = {
+                "access-control-allow-origin": "*",
+                "access-control-allow-methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "access-control-allow-headers": "Content-Type, Authorization",
+            }
+
+            # デフォルトヘッダーを先に追加（CORS 設定がない場合のみ）
+            for key, value in default_headers.items():
+                asgi_headers.append([key.encode("latin-1"), value.encode("latin-1")])
 
         # カスタムヘッダーを追加
         for key, value in headers.items():
