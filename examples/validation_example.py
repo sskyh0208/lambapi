@@ -1,6 +1,6 @@
 """
-バリデーション機能のサンプル
-リクエスト/レスポンス形式の指定例
+依存性注入機能のサンプル
+Query, Path, Body パラメータの依存性注入例
 """
 
 import json
@@ -11,7 +11,7 @@ from typing import Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lambapi import API, Response, create_lambda_handler
+from lambapi import API, Response, create_lambda_handler, Query, Path, Body
 
 
 # リクエスト用データクラス
@@ -56,29 +56,28 @@ def create_app(event, context):
 
     app.add_middleware(cors_middleware)
 
-    # ===== バリデーション付きルート定義 =====
+    # ===== 依存性注入を使ったルート定義 =====
 
-    @app.post("/users", request_format=CreateUserRequest, response_format=UserResponse)
-    def create_user(request: CreateUserRequest):
-        """ユーザー作成（バリデーション付き）"""
-        # request は CreateUserRequest オブジェクトとして受け取れる
-        print(f"受信データ: name={request.name}, email={request.email}, age={request.age}")
+    @app.post("/users")
+    def create_user(user_data: CreateUserRequest = Body(...)):
+        """ユーザー作成（依存性注入付き）"""
+        # user_data は CreateUserRequest オブジェクトとして受け取れる
+        print(f"受信データ: name={user_data.name}, email={user_data.email}, age={user_data.age}")
 
         # レスポンスデータを作成
-        user_data = {
-            "id": f"user_{hash(request.email) % 10000}",
-            "name": request.name,
-            "email": request.email,
-            "age": request.age,
+        response_data = {
+            "id": f"user_{hash(user_data.email) % 10000}",
+            "name": user_data.name,
+            "email": user_data.email,
+            "age": user_data.age,
             "created_at": "2024-01-01T00:00:00Z",
         }
 
-        # UserResponse 形式でバリデーションされる
-        return user_data
+        return response_data
 
-    @app.get("/users/{user_id}", response_format=UserResponse)
-    def get_user(user_id: str):
-        """ユーザー取得（レスポンスバリデーション付き）"""
+    @app.get("/users/{user_id}")
+    def get_user(user_id: str = Path(...)):
+        """ユーザー取得（パスパラメータ依存性注入）"""
         # サンプルユーザーデータ
         user_data = {
             "id": user_id,
@@ -138,11 +137,11 @@ if __name__ == "__main__":
         "body": json.dumps({"name": "John Doe", "email": "john@example.com", "age": 30}),
     }
 
-    print("=== Test 1: バリデーション付きユーザー作成（正常） ===")
+    print("=== Test 1: 依存性注入付きユーザー作成（正常） ===")
     result1 = lambda_handler(test_event_1, None)
     print(json.dumps(result1, indent=2, ensure_ascii=False))
 
-    # テストケース 2: バリデーション付きユーザー作成（バリデーションエラー）
+    # テストケース 2: 依存性注入付きユーザー作成（バリデーションエラー）
     test_event_2 = {
         "httpMethod": "POST",
         "path": "/users",
@@ -161,7 +160,7 @@ if __name__ == "__main__":
     result2 = lambda_handler(test_event_2, None)
     print(json.dumps(result2, indent=2, ensure_ascii=False))
 
-    # テストケース 3: レスポンスバリデーション付きユーザー取得
+    # テストケース 3: パスパラメータ依存性注入付きユーザー取得
     test_event_3 = {
         "httpMethod": "GET",
         "path": "/users/123",
@@ -170,7 +169,7 @@ if __name__ == "__main__":
         "body": None,
     }
 
-    print("\n=== Test 3: レスポンスバリデーション付きユーザー取得 ===")
+    print("\n=== Test 3: パスパラメータ依存性注入付きユーザー取得 ===")
     result3 = lambda_handler(test_event_3, None)
     print(json.dumps(result3, indent=2, ensure_ascii=False))
 

@@ -64,11 +64,7 @@ def create_app(event, context):
 
     @app.post("/users")
     def create_user(request):
-        """ユーザー作成（JSON ボディ）
-
-        新機能: request_format と response_format でバリデーションが可能
-        例: @app.post("/users", request_format=CustomRequest, response_format=CustomResponse)
-        """
+        """ユーザー作成（JSON ボディ）"""
         try:
             user_data = request.json()
 
