@@ -291,3 +291,85 @@ class TestDependencyResolver:
         assert resolved["name"] == "test"
         assert resolved["data"] == body_data
         assert resolved["user"] == test_user
+
+    def test_request_parameter_without_body_annotation(self):
+        """request パラメータ（Body アノテーションなし）のテスト"""
+
+        def test_handler(request):
+            # 従来通り Request オブジェクトが渡されることを確認
+            return request
+
+        request = create_request(query_params={"test": "value"})
+        resolved = self.resolver.resolve_dependencies(test_handler, request)
+
+        # request パラメータには Request オブジェクト自体が渡される
+        assert resolved["request"] is request
+
+    def test_request_parameter_with_body_annotation(self):
+        """request パラメータに Body アノテーションがある場合のテスト"""
+        from pydantic import BaseModel
+
+        class TestModel(BaseModel):
+            test: str
+            num: int
+
+        def test_handler(
+            request: TestModel = Body(..., description="Request body with request name"),
+        ):
+            return request
+
+        import json
+
+        body_data = {"test": "value", "num": 123}
+        request = create_request(json_body=json.dumps(body_data))
+
+        resolved = self.resolver.resolve_dependencies(test_handler, request)
+
+        # Body アノテーションが優先され、Pydantic モデルが返される
+        assert isinstance(resolved["request"], TestModel)
+        assert resolved["request"].test == "value"
+        assert resolved["request"].num == 123
+
+    def test_req_parameter_with_body_annotation(self):
+        """req パラメータに Body アノテーションがある場合のテスト"""
+
+        def test_handler(
+            req: dict = Body(..., description="Request body with req name"),
+        ):
+            return req
+
+        import json
+
+        body_data = {"key": "value", "number": 42}
+        request = create_request(json_body=json.dumps(body_data))
+
+        resolved = self.resolver.resolve_dependencies(test_handler, request)
+
+        # Body アノテーションが優先され、辞書が返される
+        assert resolved["req"] == body_data
+
+    def test_mixed_request_parameters(self):
+        """request 引数名と通常の Body パラメータの混在テスト"""
+
+        def test_handler(
+            request: dict = Body(..., description="Request body"),
+            data: str = Query(..., description="Query parameter"),
+            user_id: str = Path(..., description="Path parameter"),
+        ):
+            pass
+
+        import json
+
+        body_data = {"test": "body_value"}
+        request = create_request(
+            query_params={"data": "query_value"}, json_body=json.dumps(body_data)
+        )
+        path_params = {"user_id": "123"}
+
+        resolved = self.resolver.resolve_dependencies(
+            test_handler, request, path_params=path_params
+        )
+
+        assert resolved["request"] == body_data  # Body として処理
+        assert resolved["data"] == "query_value"  # Query として処理
+        assert resolved["user_id"] == "123"  # Path として処理

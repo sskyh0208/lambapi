@@ -58,8 +58,8 @@ class DependencyResolver:
 
         # 各パラメータを処理
         for param_name, param in sig.parameters.items():
-            # 既存の request パラメータは従来通り処理
-            if param_name in ["request", "req"]:
+            # 既存の request パラメータは従来通り処理（依存性注入が定義されていない場合のみ）
+            if param_name in ["request", "req"] and dependencies.get(param_name) is None:
                 resolved_params[param_name] = request
                 continue
 
