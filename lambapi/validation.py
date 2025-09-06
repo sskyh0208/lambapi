@@ -118,13 +118,22 @@ def _convert_value(value: Any, target_type: Type) -> Any:
 
 
 def convert_to_dict(obj: Any) -> Any:
-    """データクラスオブジェクトを辞書に変換"""
+    """データクラス・Pydanticオブジェクトを辞書に変換"""
     import datetime
     import uuid
     import decimal
     import enum
 
-    if is_dataclass(obj):
+    # Pydantic BaseModel の場合
+    if hasattr(obj, "model_dump"):
+        # Pydantic v2 対応
+        result_dict = obj.model_dump()
+        return convert_to_dict(result_dict)
+    elif hasattr(obj, "dict"):
+        # Pydantic v1 対応
+        result_dict = obj.dict()
+        return convert_to_dict(result_dict)
+    elif is_dataclass(obj):
         result = {}
         for field in fields(obj):
             value = getattr(obj, field.name)
@@ -150,6 +159,15 @@ def convert_to_dict(obj: Any) -> Any:
             else:
                 result[field.name] = value
         return result
+    elif isinstance(obj, dict):
+        # 辞書の場合は各値を再帰的に変換
+        result = {}
+        for key, value in obj.items():
+            result[key] = convert_to_dict(value)
+        return result
+    elif isinstance(obj, list):
+        # リストの場合は各要素を再帰的に変換
+        return [convert_to_dict(item) for item in obj]
     elif isinstance(obj, datetime.datetime):
         return obj.isoformat()
     elif isinstance(obj, datetime.date):
