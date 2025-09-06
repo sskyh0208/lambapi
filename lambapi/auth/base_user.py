@@ -127,18 +127,31 @@ class BaseUser:
 
     def to_dict(self, include_password: bool = False) -> Dict[str, Any]:
         """オブジェクトを辞書形式に変換"""
-        result = {}
+        import decimal
+        import base64
+        from typing import Any
+
+        result: Dict[str, Any] = {}
         for key, value in self.__dict__.items():
             if key == "password" and not include_password:
                 continue
             if isinstance(value, datetime.datetime):
                 result[key] = value.isoformat()
+            elif isinstance(value, decimal.Decimal):
+                result[key] = float(value) if value % 1 != 0 else int(value)
+            elif isinstance(value, bytes):
+                result[key] = base64.b64encode(value).decode("utf-8")
+            elif isinstance(value, (set, frozenset)):
+                result[key] = list(value)
             else:
                 result[key] = value
         return result
 
     def to_token_payload(self) -> Dict[str, Any]:
         """JWT トークンのペイロード用辞書を生成（パスワード除外）"""
+        import decimal
+        import base64
+
         # バリデーション: token_include_fieldsの妥当性チェック
         include_fields = self.Meta.token_include_fields
         if include_fields is not None:
@@ -155,8 +168,30 @@ class BaseUser:
                     value = getattr(self, field)
                     if isinstance(value, datetime.datetime):
                         payload[field] = value.isoformat()
+                    elif isinstance(value, decimal.Decimal):
+                        payload[field] = float(value) if value % 1 != 0 else int(value)
+                    elif isinstance(value, bytes):
+                        payload[field] = base64.b64encode(value).decode("utf-8")
+                    elif isinstance(value, (set, frozenset)):
+                        payload[field] = list(value)
                     else:
                         payload[field] = value
+
+        # DynamoDB型の変換処理をpayload全体に適用
+        def convert_dynamodb_types(obj):
+            if isinstance(obj, decimal.Decimal):
+                return float(obj) if obj % 1 != 0 else int(obj)
+            elif isinstance(obj, bytes):
+                return base64.b64encode(obj).decode("utf-8")
+            elif isinstance(obj, (set, frozenset)):
+                return list(obj)
+            elif isinstance(obj, dict):
+                return {k: convert_dynamodb_types(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_dynamodb_types(item) for item in obj]
+            return obj
+
+        payload = convert_dynamodb_types(payload)
 
         # JWT標準フィールドを追加
         now = datetime.datetime.now()
