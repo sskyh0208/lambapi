@@ -87,7 +87,21 @@ class TestBaseUser:
         assert "password" not in payload
 
 
+def _dynamodb_available():
+    """DynamoDB ローカルが利用可能かチェック"""
+    try:
+        import boto3
+
+        dynamodb = boto3.resource("dynamodb", endpoint_url="http://localhost:8000")
+        # 簡単な接続テスト
+        dynamodb.meta.client.list_tables()
+        return True
+    except Exception:
+        return False
+
+
 @pytest.mark.skipif(not BOTO3_AVAILABLE, reason="boto3 not available")
+@pytest.mark.skipif(not _dynamodb_available(), reason="DynamoDB not available")
 class TestDynamoDBAuth:
     """DynamoDBAuth クラスのテスト"""
 
