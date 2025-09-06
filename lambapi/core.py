@@ -542,7 +542,7 @@ class API(BaseRouterMixin):
                 user = auth_instance.get_authenticated_user(request)
 
                 # ロール権限チェック
-                if auth_instance.user_model._is_role_permission_enabled():
+                if auth_instance.user_model.is_role_permission_enabled():
                     user_role = getattr(user, "role", None)
                     if user_role not in required_roles:
                         from .exceptions import AuthorizationError
