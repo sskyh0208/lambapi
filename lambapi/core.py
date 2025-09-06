@@ -357,10 +357,13 @@ class API(BaseRouterMixin):
         except ValidationError:
             # バリデーションエラーはそのまま再発生させる（エラーハンドラーで処理される）
             raise
-        except Exception:
-            # その他のエラーが発生した場合は従来システムにフォールバック
+        except (AttributeError, TypeError, ImportError, KeyError):
+            # 依存性注入固有のエラーのみ従来システムにフォールバック
             signature = inspect.signature(handler)
             return self._call_handler_legacy_params(handler, request, path_params, signature)
+        except Exception:
+            # 業務ロジックの例外は依存性注入が完了した後のエラーなのでそのまま再発生
+            raise
 
     def _call_handler_legacy_params(
         self,
@@ -392,7 +395,10 @@ class API(BaseRouterMixin):
                 # 型変換を実行
                 call_args[param_name] = self._convert_param_type(value, param_info)
             elif param_info.default != inspect.Parameter.empty:
-                # デフォルト値を使用
+                # 依存性注入用パラメータ（Body, Query, Path, Authenticated）はスキップ
+                if hasattr(param_info.default, "source"):
+                    continue
+                # 通常のデフォルト値を使用
                 call_args[param_name] = param_info.default
 
         # request 引数がある場合は追加
