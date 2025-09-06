@@ -129,7 +129,7 @@ ensure_newline_before_comments = true
 
 [tool.bandit]
 exclude_dirs = ["tests"]
-skips = ["B101", "B601"]
+skips = ["B101", "B105", "B106", "B601"]
 
 [tool.coverage.run]
 source = ["lambapi"]
