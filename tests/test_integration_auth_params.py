@@ -15,7 +15,8 @@ from lambapi.exceptions import AuthenticationError, ValidationError
 
 class CustomUser(BaseUser):
     def __init__(self, id: str = None, password: str = None):
-        super().__init__(id, password)
+        self.id = id
+        self.password = password
         self.name: str = ""
         self.email: str = ""
         self.role: str = "user"

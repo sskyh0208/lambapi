@@ -26,7 +26,7 @@ lambda_handler = create_lambda_handler(create_app)
 
 if __name__ == "__main__":
     # ローカルテスト用
-    test_event = {
+    test_event: Dict[str, Any] = {
         "httpMethod": "GET",
         "path": "/",
         "queryStringParameters": {},

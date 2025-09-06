@@ -14,17 +14,13 @@ class CustomUser(BaseUser):
 
     class Meta(BaseUser.Meta):
         table_name = "test_users"
-        secret_key = "test_secret_key"  # nosec B105
         expiration = 3600
-        is_email_login = True
         is_role_permission = True
         enable_auth_logging = False
-        id_type = "custom"
 
-    def __init__(self, id, password, email, role="user", name="Test User"):
-        # 先に BaseUser を初期化
-        super().__init__(id, password)
-        # その後でカスタム属性を設定
+    def __init__(self, id=None, password=None, email="", role="user", name="Test User"):
+        self.id = id
+        self.password = password
         self.email = email
         self.role = role
         self.name = name
@@ -36,14 +32,17 @@ class TestBaseUser:
 
     def test_base_user_creation(self):
         """BaseUser の基本的な作成テスト"""
-        user = BaseUser("test_user", "Password123!")
+        user = BaseUser(id="test_user", password="Password123!")
         assert user.id == "test_user"
-        assert user.password is not None
-        assert user.password != "Password123!"  # ハッシュ化されているか  # nosec B105
+        assert (
+            user.password == "Password123!"
+        )  # BaseUser.__init__はpassのみなので生パスワードが保存される  # nosec B105
 
     def test_password_verification(self):
         """パスワード検証のテスト"""
-        user = BaseUser("test_user", "Password123!")
+        # BaseUser.__init__がpassのみになったため、ハッシュ化はauth.signup経由で行われる
+        # ここでは_hash_passwordメソッドとverify_passwordメソッドをテスト
+        user = BaseUser(id="test_user", password=BaseUser.hash_password("Password123!"))
         assert user.verify_password("Password123!") is True
         assert user.verify_password("wrong_password") is False
 
@@ -77,25 +76,27 @@ class TestBaseUser:
 
     def test_password_validation_requirements(self):
         """パスワード要件のテスト"""
+        user = BaseUser()
+
         # 短すぎるパスワード
         with pytest.raises(ValueError, match=r"パスワードは\d+文字以上である必要があります"):
-            BaseUser("test", "123")
+            user.validate_password("123")
 
         # 数字要件を満たさないパスワード（デフォルトは数字必須）
         with pytest.raises(ValueError, match="パスワードには数字を含める必要があります"):
-            BaseUser("test", "onlyletters")
+            user.validate_password("onlyletters")
 
     def test_custom_meta_settings(self):
         """カスタムメタ設定のテスト"""
         assert CustomUser.Meta.table_name == "test_users"
-        assert CustomUser.Meta.secret_key == "test_secret_key"  # nosec B105
-        assert CustomUser.Meta.is_email_login is True
         assert CustomUser.Meta.is_role_permission is True
 
     def test_email_validation(self):
         """メールアドレスバリデーションのテスト"""
         # 有効なメールアドレス
-        user = CustomUser("test", "Password123!", "valid@example.com")
+        user = CustomUser(
+            "test", "Password123!", "valid@example.com", role="user", name="Test User"
+        )
         user._validate_email("valid@example.com")  # エラーが発生しないことを確認
 
         # 無効なメールアドレス
@@ -109,12 +110,16 @@ if __name__ == "__main__":
     try:
         # BaseUser のテスト
         print("✓ BaseUser 作成テスト")
-        user = BaseUser("test", "Password123!")
+        user = BaseUser()
+        user.id = "test"
+        user.password = user._hash_password("Password123!")
         assert user.verify_password("Password123!")
         print("✓ パスワード検証テスト")
 
         # CustomUser のテスト
-        custom_user = CustomUser("custom", "Password123!", "test@example.com")
+        custom_user = CustomUser(
+            "custom", "Password123!", "test@example.com", role="user", name="Test User"
+        )
         assert custom_user.email == "test@example.com"
         print("✓ CustomUser 作成テスト")
 
