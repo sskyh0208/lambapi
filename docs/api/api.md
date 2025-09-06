@@ -20,6 +20,7 @@ lambapi のメインクラスです。すべての API 機能はこのクラス�
 
 ## 基本的な使用法
 
+### 従来の方法
 ```python
 from lambapi import API, create_lambda_handler
 
@@ -29,6 +30,39 @@ def create_app(event, context):
     @app.get("/")
     def hello():
         return {"message": "Hello, World!"}
+    
+    return app
+
+lambda_handler = create_lambda_handler(create_app)
+```
+
+### 依存性注入を使った方法（推奨）
+```python
+from lambapi import API, create_lambda_handler, Query, Path, Body
+from dataclasses import dataclass
+
+@dataclass
+class UserData:
+    name: str
+    email: str
+
+def create_app(event, context):
+    app = API(event, context)
+    
+    @app.get("/users/{user_id}")
+    def get_user(
+        user_id: str = Path(..., description="ユーザー ID"),
+        include_details: bool = Query(False, description="詳細情報を含める")
+    ):
+        return {
+            "user_id": user_id,
+            "name": f"User {user_id}",
+            "details": "詳細情報" if include_details else None
+        }
+    
+    @app.post("/users")
+    def create_user(user: UserData = Body(...)):
+        return {"message": "User created", "user": user}
     
     return app
 

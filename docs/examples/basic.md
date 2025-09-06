@@ -313,12 +313,12 @@ def create_app(event, context):
 lambda_handler = create_lambda_handler(create_app)
 ```
 
-## データバリデーション
+## 依存性注入によるデータバリデーション
 
-データクラスを使用したバリデーションの例です。
+データクラスと依存性注入を組み合わせたバリデーションの例です。
 
 ```python title="validation.py"
-from lambapi import API, Response, create_lambda_handler
+from lambapi import API, Response, create_lambda_handler, Query, Path, Body
 from dataclasses import dataclass
 from typing import Optional
 
@@ -329,21 +329,14 @@ class CreateUserRequest:
     age: int
     bio: Optional[str] = None
 
-@dataclass
-class UserResponse:
-    id: str
-    name: str
-    email: str
-    age: int
-    bio: Optional[str] = None
-
 def create_app(event, context):
     app = API(event, context)
     
     users = {}
     
-    @app.post("/users", request_format=CreateUserRequest, response_format=UserResponse)
-    def create_user(user_data: CreateUserRequest):
+    @app.post("/users")
+    def create_user(user_data: CreateUserRequest = Body(..., description="ユーザー作成データ")):
+        """ユーザー作成（依存性注入によるバリデーション）"""
         # user_data は自動的に CreateUserRequest インスタンスに変換される
         user_id = str(len(users) + 1)
         
@@ -357,15 +350,42 @@ def create_app(event, context):
         
         users[user_id] = user
         
-        # 戻り値は UserResponse として検証される
-        return user
+        return Response(
+            {"message": "ユーザーが作成されました", "user": user},
+            status_code=201
+        )
     
-    @app.get("/users/{user_id}", response_format=UserResponse)
-    def get_user(user_id: str):
+    @app.get("/users/{user_id}")
+    def get_user(user_id: str = Path(..., description="ユーザー ID")):
+        """ユーザー取得（パスパラメータ依存性注入）"""
         if user_id not in users:
             return Response({"error": "User not found"}, status_code=404)
         
-        return users[user_id]
+        return {"user": users[user_id]}
+    
+    @app.get("/users")
+    def list_users(
+        limit: int = Query(10, ge=1, le=100, description="取得件数"),
+        offset: int = Query(0, ge=0, description="オフセット"),
+        search: str = Query("", description="名前検索")
+    ):
+        """ユーザー一覧取得（クエリパラメータ依存性注入）"""
+        user_list = list(users.values())
+        
+        # 検索フィルタ
+        if search:
+            user_list = [u for u in user_list if search.lower() in u["name"].lower()]
+        
+        # ページネーション
+        total = len(user_list)
+        user_list = user_list[offset:offset + limit]
+        
+        return {
+            "users": user_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
     
     return app
 
@@ -481,6 +501,7 @@ def test_api(lambda_handler, method, path, body=None, query_params=None):
 if __name__ == "__main__":
     from path_parameters import lambda_handler as path_handler
     from query_parameters import lambda_handler as query_handler
+    from validation import lambda_handler as validation_handler
     
     # パスパラメータのテスト
     test_api(path_handler, 'GET', '/hello/world')
@@ -492,6 +513,21 @@ if __name__ == "__main__":
         'category': 'electronics',
         'min_price': '100',
         'in_stock': 'true'
+    })
+    
+    # 依存性注入のテスト
+    test_api(validation_handler, 'POST', '/users', body={
+        'name': 'John Doe',
+        'email': 'john@example.com',
+        'age': 30,
+        'bio': 'Software Engineer'
+    })
+    
+    test_api(validation_handler, 'GET', '/users/1')
+    test_api(validation_handler, 'GET', '/users', query_params={
+        'limit': '5',
+        'offset': '0',
+        'search': 'John'
     })
 ```
 

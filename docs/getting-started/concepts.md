@@ -52,10 +52,18 @@ graph TD
     B --> C[Request Object]
     B --> D[Router]
     D --> E[Route Matching]
-    E --> F[Parameter Injection]
-    F --> G[Handler Execution]
-    G --> H[Response Processing]
-    H --> I[Lambda Response]
+    E --> F[Dependency Injection]
+    F --> F1[Path Parameter]
+    F --> F2[Query Parameter]
+    F --> F3[Body Parameter]
+    F --> F4[Authentication]
+    F1 --> G[Type Conversion & Validation]
+    F2 --> G
+    F3 --> G
+    F4 --> G
+    G --> H[Handler Execution]
+    H --> I[Response Processing]
+    I --> J[Lambda Response]
 ```
 
 ### 1. API クラス
@@ -111,37 +119,57 @@ class Route:
         pass
 ```
 
-## パラメータ注入システム
+## 依存性注入システム
 
-### 自動パラメータ解決
+### モダンな依存性注入
 
-lambapi の最大の特徴は、関数シグネチャからパラメータを自動解決することです：
+lambapi の最大の特徴は、モダンな依存性注入システムによる型安全なパラメータ取得です：
 
 ```python
+from lambapi import Query, Path, Body
+from dataclasses import dataclass
+
+@dataclass
+class UserFilter:
+    name: str
+    active: bool = True
+
 @app.get("/users/{user_id}/posts")
 def get_posts(
-    user_id: str,        # パスパラメータから
-    limit: int = 10,     # クエリパラメータから（デフォルト値あり）
-    sort: str = "date"   # クエリパラメータから（デフォルト値あり）
+    user_id: str = Path(..., description="ユーザー ID"),           # パスパラメータ
+    limit: int = Query(10, ge=1, le=100, description="取得件数"),   # クエリパラメータ
+    sort: str = Query("date", regex="^(date|name|score)$"),      # バリデーション付き
+    filters: UserFilter = Body(...)                              # リクエストボディ
 ):
-    return {"user_id": user_id, "limit": limit, "sort": sort}
+    return {"user_id": user_id, "limit": limit, "sort": sort, "filters": filters}
 ```
 
-### 解決の優先順位
+### 依存性注入の種類
 
-1. **パスパラメータ** (`/users/{user_id}`)
-2. **クエリパラメータ** (`?limit=20&sort=name`)
-3. **デフォルト値** (関数定義での初期値)
+1. **Path()** - パスパラメータ (`/users/{user_id}`)
+2. **Query()** - クエリパラメータ (`?limit=20&sort=name`)
+3. **Body()** - リクエストボディ（JSON）
+4. **Authenticated()** - 認証されたユーザー情報
 
-### 型変換システム
+### バリデーション機能
 
 ```python
-TYPE_CONVERTERS = {
-    str: lambda x: x,                              # そのまま
-    int: lambda x: int(x) if x.isdigit() else 0,   # 数値変換
-    float: lambda x: float(x),                     # 小数変換
-    bool: lambda x: x.lower() in ('true', '1', 'yes', 'on')  # 真偽値変換
-}
+from lambapi import Query, Path
+
+@app.get("/users/{user_id}")
+def get_user(
+    user_id: int = Path(..., gt=0, le=999999, description="ユーザー ID"),
+    name: str = Query(..., min_length=2, max_length=50, description="検索名"),
+    active: bool = Query(True, description="アクティブフラグ"),
+    score: float = Query(0.0, ge=0.0, le=100.0, description="スコア")
+):
+    # すべてのパラメータは型変換・バリデーション済み
+    return {"user_id": user_id, "name": name, "active": active, "score": score}
+
+# 利用可能なバリデーター
+# - gt, ge, lt, le: 数値範囲
+# - min_length, max_length: 文字列長
+# - regex: 正規表現パターン
 ```
 
 ## ルーティングシステム
@@ -308,13 +336,18 @@ app.include_router(admin_router)
 
 lambapi の核となる概念：
 
-- **自動パラメータ注入** - 型安全で直感的
+- **モダンな依存性注入** - Query, Path, Body, Authenticated による型安全なパラメータ取得
+- **自動型変換・バリデーション** - データクラスと制約による堅牢な API
 - **軽量ルーティング** - 高速なパスマッチング
-- **階層的エラー処理** - 柔軟で統一的
+- **階層的エラー処理** - 柔軟で統一的なエラーハンドリング
 - **ミドルウェアシステム** - 横断的関心事の分離
-- **パフォーマンス最適化** - Lambda に特化した設計
+- **パフォーマンス最適化** - Lambda に特化した設計とキャッシュ機能
+
+**従来システムとの互換性**: 新しい依存性注入システムを使いつつ、従来の `request` オブジェクトも並行して利用できます。
 
 これらの概念を理解して、次のステップに進みましょう：
 
-- [チュートリアル](../tutorial/basic-api.md) - 実践的な使用方法
+- [依存性注入チュートリアル](../tutorial/dependency-injection.md) - 詳細な依存性注入パターン
+- [基本 API チュートリアル](../tutorial/basic-api.md) - 実践的な使用方法
+- [認証システム](../guides/authentication.md) - DynamoDB + JWT 認証
 - [API リファレンス](../api/api.md) - 詳細な API 仕様

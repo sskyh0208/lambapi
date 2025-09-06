@@ -48,6 +48,8 @@ def create_app(event, context):
 ### 2. 詳細な CORS 設定
 
 ```python
+from lambapi import Query, Path, Body
+
 def create_app(event, context):
     app = API(event, context)
     
@@ -62,8 +64,14 @@ def create_app(event, context):
     )
     
     @app.get("/api/data")
-    def get_data():
-        return {"data": "secure data"}
+    def get_data(
+        page: int = Query(1, ge=1, description="ページ番号"),
+        per_page: int = Query(20, ge=1, le=100, description="1 ページあたりの件数")
+    ):
+        return {
+            "data": f"secure data - page {page}",
+            "pagination": {"page": page, "per_page": per_page}
+        }
     
     return app
 ```
