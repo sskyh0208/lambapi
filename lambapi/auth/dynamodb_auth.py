@@ -294,6 +294,9 @@ class DynamoDBAuth:
 
     def update_password(self, id: str, new_password: str) -> BaseUser:
         """パスワード更新"""
+        if not id:
+            raise ValidationError("id は必須です")
+
         if not new_password:
             raise ValidationError("new_password は必須です")
 
