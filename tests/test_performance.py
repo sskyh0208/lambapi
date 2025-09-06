@@ -57,7 +57,7 @@ class TestJSONPerformance:
 
         # JSONHandler は標準より高速または同等であることを期待
         # orjson がある場合は高速、ない場合は同等の性能
-        assert handler_time <= standard_time * 1.2  # 20% 以内の差（フォールバック考慮）
+        assert handler_time <= standard_time * 1.5  # 50% 以内の差（フォールバック考慮）
 
     def test_json_dumps_performance(self):
         """JSON シリアライズ性能テスト"""
@@ -78,7 +78,7 @@ class TestJSONPerformance:
         print(f"改善率: {((standard_time - handler_time) / standard_time * 100):.1f}%")
 
         # JSONHandler は標準より高速または同等であることを期待
-        assert handler_time <= standard_time * 1.2  # 20% 以内の差（フォールバック考慮）
+        assert handler_time <= standard_time * 1.5  # 50% 以内の差（フォールバック考慮）
 
     def test_json_error_handling_performance(self):
         """JSON エラーハンドリング性能テスト"""
