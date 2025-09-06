@@ -334,9 +334,7 @@ class TestDynamoDBAuth:
         self.auth.signup(user)
 
         # ログイン（生パスワードを渡す）
-        login_user = BaseUser()
-        login_user.id = "test_user"
-        result = self.auth.login(login_user, "Password123!")  # 生パスワード
+        result = self.auth.login("test_user", "Password123!")  # 生パスワード
 
         # トークンが返される
         assert isinstance(result, str)
@@ -344,11 +342,8 @@ class TestDynamoDBAuth:
 
     def test_login_invalid_credentials(self):
         """ログイン失敗のテスト"""
-        user = BaseUser()
-        user.id = "nonexistent_user"
-
         with pytest.raises(AuthenticationError):
-            self.auth.login(user, "Password123!")
+            self.auth.login("nonexistent_user", "Password123!")
 
     def test_logout(self):
         """ログアウトのテスト"""
@@ -363,9 +358,7 @@ class TestDynamoDBAuth:
         self.auth.signup(user)
 
         # ログイン（生パスワードを渡す）
-        login_user = BaseUser()
-        login_user.id = "logout_test_user"
-        token = self.auth.login(login_user, "Password123!")  # 生パスワード
+        token = self.auth.login("logout_test_user", "Password123!")  # 生パスワード
 
         # ログアウトリクエストモック（既存のlogoutメソッドを使用）
         mock_event = {"headers": {"Authorization": f"Bearer {token}"}}

@@ -250,17 +250,13 @@ class DynamoDBAuth:
         except ValueError as e:
             raise ValidationError(str(e))
 
-    def login(self, user: BaseUser, password: str) -> str:
+    def login(self, id: str, password: str) -> str:
         """ユーザーログイン"""
-        # IDの検証
-        if not user.id:
-            raise ValidationError("id は必須です")
-
         # ユーザー取得（IDのみ）
-        existing_user = self._get_user_by_id(user.id)
+        existing_user = self._get_user_by_id(id)
 
         if not existing_user or not existing_user.verify_password(password):
-            self._log_auth_event("login_failed", user.id)
+            self._log_auth_event("login_failed", id)
             raise AuthenticationError("認証に失敗しました")
 
         # JWT トークン生成
