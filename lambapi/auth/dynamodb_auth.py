@@ -252,7 +252,7 @@ class DynamoDBAuth:
 
     def login(self, id: str, password: str) -> str:
         """ユーザーログイン"""
-        # ユーザー取得（IDのみ）
+        # ユーザー取得
         existing_user = self._get_user_by_id(id)
 
         if not existing_user or not existing_user.verify_password(password):
