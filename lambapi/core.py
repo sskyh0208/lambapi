@@ -484,10 +484,11 @@ class API(BaseRouterMixin):
             response = Response(result)
         else:
             # Pydantic BaseModel の場合は辞書に変換
-            if hasattr(result, "model_dump"):
-                response = Response(result.model_dump())
-            elif hasattr(result, "dict"):
-                response = Response(result.dict())
+            if hasattr(result, "model_dump") or hasattr(result, "dict"):
+                # json_encoders を考慮した変換を行う
+                from .validation import convert_to_dict
+
+                response = Response(convert_to_dict(result))
             else:
                 response = Response({"result": result})
 
