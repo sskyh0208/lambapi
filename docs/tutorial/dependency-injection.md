@@ -124,9 +124,11 @@ def create_app(event, context):
 from lambapi import API, Authenticated, DynamoDBAuth, BaseUser
 
 class CustomUser(BaseUser):
-    def __init__(self, id: str = None, password: str = None):
-        super().__init__(id, password)
-        self.role = "user"  # デフォルトロール
+    def __init__(self, id=None, password=None, role="user", name=""):
+        self.id = id
+        self.password = password
+        self.role = role
+        self.name = name
 
 def create_app(event, context):
     app = API(event, context)
@@ -162,9 +164,11 @@ class UpdatePostRequest:
     published: bool = False
 
 class CustomUser(BaseUser):
-    def __init__(self, id: str = None, password: str = None):
-        super().__init__(id, password)
-        self.role = "user"
+    def __init__(self, id=None, password=None, role="user", name=""):
+        self.id = id
+        self.password = password
+        self.role = role
+        self.name = name
 
 def create_app(event, context):
     app = API(event, context)

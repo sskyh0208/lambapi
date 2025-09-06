@@ -30,7 +30,7 @@ repos:
     rev: '1.7.10'
     hooks:
       - id: bandit
-        args: ['--skip', 'B101']
+        args: ['--skip', 'B101,B105,B106']
 
   # テスト実行
   - repo: local

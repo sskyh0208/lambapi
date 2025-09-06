@@ -198,33 +198,6 @@ class DynamoDBAuth:
             self.logger.error(f"User retrieval error: {str(e)}")
         return None
 
-    def _get_user_by_email(self, email: str) -> Optional[BaseUser]:
-        """メールアドレスでユーザーを取得（GSI 使用）"""
-        if not self.user_model._is_email_login_enabled():
-            return None
-
-        try:
-            response = self.table.query(
-                IndexName="email-index",
-                KeyConditionExpression=boto3.dynamodb.conditions.Key("email").eq(email),
-            )
-            if response["Items"]:
-                item = response["Items"][0]
-                # ユーザーオブジェクトを再構築
-                user = self.user_model.__new__(self.user_model)
-                for key, value in item.items():
-                    if key == "created_at" or key == "updated_at":
-                        try:
-                            setattr(user, key, datetime.datetime.fromisoformat(value))
-                        except (ValueError, TypeError):
-                            setattr(user, key, value)
-                    else:
-                        setattr(user, key, value)
-                return user
-        except Exception as e:
-            self.logger.error(f"User retrieval by email error: {str(e)}")
-        return None
-
     def _save_user(self, user: BaseUser) -> None:
         """ユーザーを DynamoDB に保存"""
         try:
@@ -242,93 +215,62 @@ class DynamoDBAuth:
             self.logger.error(f"User deletion error: {str(e)}")
             raise NotFoundError("ユーザーの削除に失敗しました")
 
-    def signup(self, request: Request) -> Dict[str, Any]:
+    def signup(self, user: BaseUser) -> BaseUser:
         """ユーザー登録"""
-        try:
-            data = request.json()
-        except Exception:
-            raise ValidationError("無効な JSON リクエストです")
+        # IDの検証
+        if not user.id:
+            raise ValidationError("id は必須です")
 
-        # 必須フィールドの検証
-        if "id" not in data or "password" not in data:
-            raise ValidationError("id と password は必須です")
+        # パスワードバリデーション
+        if not user.password:
+            raise ValidationError("password は必須です")
+
+        # パスワードの強度チェック
+        user.validate_password(user.password)
+
+        # パスワードをハッシュ化
+        hashed_password = user._hash_password(user.password)
+        user.password = hashed_password
 
         # 既存ユーザーチェック
-        if self._get_user_by_id(data["id"]):
+        if self._get_user_by_id(user.id):
             raise ConflictError("この ID は既に使用されています")
 
-        # メールログイン有効時のメールチェック
-        if self.user_model._is_email_login_enabled():
-            if "email" not in data:
-                raise ValidationError("email は必須です")
-            if self._get_user_by_email(data["email"]):
-                raise ConflictError("このメールアドレスは既に使用されています")
-
-        # ロール権限有効時のロールチェック
-        if self.user_model._is_role_permission_enabled():
-            if "role" not in data:
-                data["role"] = "user"  # デフォルトロール
-
         try:
-            # ユーザーオブジェクト作成（位置引数として渡す）
-            if self.user_model == BaseUser:
-                # BaseUser の場合
-                user = self.user_model(data["id"], data["password"])
-            else:
-                # カスタムユーザーの場合、コンストラクタの順序に従う
-                # CustomUser(id, password, name, email, role="user")
-                try:
-                    user = self.user_model(  # type: ignore
-                        data["id"],
-                        data["password"],
-                        data.get("name", ""),
-                        data.get("email", ""),
-                        data.get("role", "user"),
-                    )
-                except Exception:
-                    # フォールバック: BaseUser として作成
-                    user = self.user_model(data["id"], data["password"])
-
             self._save_user(user)
-
             self._log_auth_event("user_signup", user.id)
 
-            return {"message": "ユーザー登録が完了しました", "user_id": user.id}
+            # 保存されたユーザーを取得して返す
+            saved_user = self._get_user_by_id(user.id)
+            if not saved_user:
+                raise ValidationError("ユーザーの保存に失敗しました")
+            return saved_user
         except ValueError as e:
             raise ValidationError(str(e))
 
-    def login(self, request: Request) -> Dict[str, Any]:
+    def login(self, user: BaseUser, password: str) -> str:
         """ユーザーログイン"""
-        try:
-            data = request.json()
-        except Exception:
-            raise ValidationError("無効な JSON リクエストです")
+        # IDの検証
+        if not user.id:
+            raise ValidationError("id は必須です")
 
-        # 必須フィールドの検証
-        if ("id" not in data and "email" not in data) or "password" not in data:
-            raise ValidationError("id/email と password は必須です")
+        # ユーザー取得（IDのみ）
+        existing_user = self._get_user_by_id(user.id)
 
-        # ユーザー取得
-        user = None
-        if "id" in data:
-            user = self._get_user_by_id(data["id"])
-        elif "email" in data and self.user_model._is_email_login_enabled():
-            user = self._get_user_by_email(data["email"])
-
-        if not user or not user.verify_password(data["password"]):
-            self._log_auth_event("login_failed", data.get("id", data.get("email")))
+        if not existing_user or not existing_user.verify_password(password):
+            self._log_auth_event("login_failed", user.id)
             raise AuthenticationError("認証に失敗しました")
 
         # JWT トークン生成
-        token = self._generate_jwt_token(user)
-        payload = user.to_token_payload()
+        token = self._generate_jwt_token(existing_user)
+        payload = existing_user.to_token_payload()
 
         # セッション保存（同じユーザーの場合は自動的に上書きされる）
-        self._save_session(user, token, payload)
+        self._save_session(existing_user, token, payload)
 
-        self._log_auth_event("login_success", user.id)
+        self._log_auth_event("login_success", existing_user.id)
 
-        return {"message": "ログインしました", "token": token, "user": user.to_dict()}
+        return token
 
     def logout(self, request: Request) -> Dict[str, Any]:
         """ユーザーログアウト"""
@@ -362,7 +304,7 @@ class DynamoDBAuth:
 
         return {"message": "ユーザーを削除しました"}
 
-    def update_password(self, request: Request, user_id: str) -> Dict[str, Any]:
+    def update_password(self, request: Request, user_id: str) -> BaseUser:
         """パスワード更新"""
         try:
             data = request.json()
@@ -387,7 +329,11 @@ class DynamoDBAuth:
 
             self._log_auth_event("password_updated", user_id)
 
-            return {"message": "パスワードを更新しました"}
+            # 更新されたユーザーを取得して返す
+            updated_user = self._get_user_by_id(user_id)
+            if not updated_user:
+                raise ValidationError("ユーザーの更新に失敗しました")
+            return updated_user
         except ValueError as e:
             raise ValidationError(str(e))
 

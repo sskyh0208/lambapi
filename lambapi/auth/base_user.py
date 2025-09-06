@@ -5,10 +5,9 @@ DynamoDB 認証システムの基本的なユーザーモデルです。
 """
 
 import datetime
-import uuid
 import hashlib
 import re
-from typing import Optional, Any, Dict, Union
+from typing import Optional, Any, Dict
 
 try:
     import bcrypt
@@ -23,8 +22,6 @@ class Meta:
 
     table_name = "users"
     expiration = 3600
-    id_type = "uuid"
-    is_email_login = False
     is_role_permission = False
     password_min_length = 8
     password_require_uppercase = False
@@ -34,6 +31,7 @@ class Meta:
     enable_auth_logging = False
     auto_timestamps = True
     endpoint_url: Optional[str] = None
+    token_include_fields: Optional[list] = None
 
 
 class BaseUser:
@@ -41,57 +39,50 @@ class BaseUser:
 
     Meta = Meta
 
-    def __init__(self, id: Union[str, None] = None, password: Optional[str] = None):
+    # 型ヒント用の属性定義
+    id: Optional[str]
+    password: Optional[str]
+
+    def __init__(self, *args, **kwargs):
         """
         基本的なユーザーモデルのコンストラクタ
-
-        Args:
-            id: ユーザー ID（None の場合は自動生成）
-            password: パスワード
         """
-        if id is None:
-            if self.Meta.id_type == "uuid":
-                self.id = str(uuid.uuid4())
-            else:
-                raise ValueError("id と password は必須です")
-        else:
-            self.id = id
-
-        self.password: Optional[str]
-        if password is not None:
-            self._validate_password(password)
-            self.password = self._hash_password(password)
-        else:
-            self.password = None
-
-        if self.Meta.auto_timestamps:
-            now = datetime.datetime.now()
-            self.created_at = now
-            self.updated_at = now
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def _validate_password(self, password: str) -> None:
         """パスワードのバリデーション"""
-        if len(password) < self.Meta.password_min_length:
+        self.validate_password(password)
+
+    @classmethod
+    def validate_password(cls, password: str) -> None:
+        """パスワードのバリデーション（クラスメソッド版）"""
+        if len(password) < cls.Meta.password_min_length:
             raise ValueError(
-                f"パスワードは{self.Meta.password_min_length}文字以上である必要があります"
+                f"パスワードは{cls.Meta.password_min_length}文字以上である必要があります"
             )
 
-        if self.Meta.password_require_uppercase and not re.search(r"[A-Z]", password):
+        if cls.Meta.password_require_uppercase and not re.search(r"[A-Z]", password):
             raise ValueError("パスワードには大文字を含める必要があります")
 
-        if self.Meta.password_require_lowercase and not re.search(r"[a-z]", password):
+        if cls.Meta.password_require_lowercase and not re.search(r"[a-z]", password):
             raise ValueError("パスワードには小文字を含める必要があります")
 
-        if self.Meta.password_require_digit and not re.search(r"\d", password):
+        if cls.Meta.password_require_digit and not re.search(r"\d", password):
             raise ValueError("パスワードには数字を含める必要があります")
 
-        if self.Meta.password_require_special and not re.search(
-            r'[!@#$%^&*(),.?":{}|<>]', password
+        if cls.Meta.password_require_special and not re.search(
+            r"[!@#$%^&*(),.?\":{}|<>]", password
         ):
             raise ValueError("パスワードには特殊文字を含める必要があります")
 
     def _hash_password(self, password: str) -> str:
         """パスワードをハッシュ化"""
+        return self.hash_password(password)
+
+    @classmethod
+    def hash_password(cls, password: str) -> str:
+        """パスワードをハッシュ化（クラスメソッド版）"""
         if not BCRYPT_AVAILABLE:
             # bcrypt が利用できない場合は simple なハッシュ（テスト用）
             return hashlib.sha256(password.encode("utf-8")).hexdigest()
@@ -116,6 +107,24 @@ class BaseUser:
         if not re.match(email_pattern, email):
             raise ValueError("有効なメールアドレスを入力してください")
 
+    def _validate_token_fields(self, fields: list) -> None:
+        """トークンフィールドのバリデーション"""
+        if not isinstance(fields, list):
+            raise ValueError("token_include_fields はリスト形式である必要があります")
+
+        for field in fields:
+            if not isinstance(field, str):
+                raise ValueError("token_include_fields の要素は文字列である必要があります")
+
+            # password は常に禁止
+            if field == "password":
+                raise ValueError("password フィールドはトークンに含めることができません")
+
+            # 存在しないプロパティの警告（実行時チェック）
+            if not hasattr(self, field):
+                # ログ出力などで警告するが、エラーにはしない
+                raise ValueError(f"警告: フィールド '{field}' は存在しません")
+
     def to_dict(self, include_password: bool = False) -> Dict[str, Any]:
         """オブジェクトを辞書形式に変換"""
         result = {}
@@ -130,11 +139,45 @@ class BaseUser:
 
     def to_token_payload(self) -> Dict[str, Any]:
         """JWT トークンのペイロード用辞書を生成（パスワード除外）"""
-        payload = self.to_dict(include_password=False)
+        # バリデーション: token_include_fieldsの妥当性チェック
+        include_fields = self.Meta.token_include_fields
+        if include_fields is not None:
+            self._validate_token_fields(include_fields)
+
+        if include_fields is None:
+            # デフォルト: 全フィールド（passwordは除外）
+            payload = self.to_dict(include_password=False)
+        else:
+            # カスタム: 指定されたフィールドのみ
+            payload = {}
+            for field in include_fields:
+                if hasattr(self, field) and field != "password":
+                    value = getattr(self, field)
+                    if isinstance(value, datetime.datetime):
+                        payload[field] = value.isoformat()
+                    else:
+                        payload[field] = value
+
+        # JWT標準フィールドを追加
         now = datetime.datetime.now()
         payload["iat"] = int(now.timestamp())
         payload["exp"] = int((now + datetime.timedelta(seconds=self.Meta.expiration)).timestamp())
         return payload
+
+    @classmethod
+    def decode_token_payload(cls, token: str, secret_key: str) -> Dict[str, Any]:
+        """JWTトークンをデコードしてペイロードを取得"""
+        try:
+            import jwt
+
+            decoded = jwt.decode(token, secret_key, algorithms=["HS256"])
+            return dict(decoded)
+        except ImportError:
+            raise RuntimeError("JWT library is not available")
+        except jwt.ExpiredSignatureError:
+            raise ValueError("トークンの有効期限が切れています")
+        except jwt.InvalidTokenError:
+            raise ValueError("無効なトークンです")
 
     def update_attributes(self, **kwargs: Any) -> None:
         """属性を更新"""
@@ -161,11 +204,6 @@ class BaseUser:
     def _get_expiration(cls) -> int:
         """トークン有効期限を取得"""
         return cls.Meta.expiration
-
-    @classmethod
-    def _is_email_login_enabled(cls) -> bool:
-        """メールログインが有効かどうか"""
-        return cls.Meta.is_email_login
 
     @classmethod
     def _is_role_permission_enabled(cls) -> bool:
