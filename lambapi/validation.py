@@ -119,6 +119,11 @@ def _convert_value(value: Any, target_type: Type) -> Any:
 
 def convert_to_dict(obj: Any) -> Any:
     """データクラスオブジェクトを辞書に変換"""
+    import datetime
+    import uuid
+    import decimal
+    import enum
+
     if is_dataclass(obj):
         result = {}
         for field in fields(obj):
@@ -130,8 +135,32 @@ def convert_to_dict(obj: Any) -> Any:
                     convert_to_dict(item) if is_dataclass(item) else item for item in value
                 ]
                 result[field.name] = converted_list
+            elif isinstance(value, datetime.datetime):
+                result[field.name] = value.isoformat()
+            elif isinstance(value, datetime.date):
+                result[field.name] = value.isoformat()
+            elif isinstance(value, datetime.time):
+                result[field.name] = value.isoformat()
+            elif isinstance(value, uuid.UUID):
+                result[field.name] = str(value)
+            elif isinstance(value, decimal.Decimal):
+                result[field.name] = str(value)
+            elif isinstance(value, enum.Enum):
+                result[field.name] = value.value
             else:
                 result[field.name] = value
         return result
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.date):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.time):
+        return obj.isoformat()
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    elif isinstance(obj, decimal.Decimal):
+        return str(obj)
+    elif isinstance(obj, enum.Enum):
+        return obj.value
     else:
         return obj
