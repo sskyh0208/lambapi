@@ -52,7 +52,7 @@ except ImportError:
     BaseUser = None  # type: ignore
     DynamoDBAuth = None  # type: ignore
 
-__version__ = "0.2.7"
+__version__ = "0.2.8"
 __author__ = "Your Name"
 __email__ = "your.email@example.com"
 
