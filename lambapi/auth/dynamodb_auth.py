@@ -292,22 +292,21 @@ class DynamoDBAuth:
 
         return {"message": "ユーザーを削除しました"}
 
-    def update_password(self, user: BaseUser, new_password: str) -> BaseUser:
+    def update_password(self, id: str, new_password: str) -> BaseUser:
         """パスワード更新"""
         if not new_password:
             raise ValidationError("new_password は必須です")
 
         try:
+            user = self._get_user_by_id(id)
+            if not user:
+                raise NotFoundError("ユーザーが見つかりません")
             user.update_attributes(password=new_password)
             self._save_user(user)
 
             self._log_auth_event("password_updated", user.id)
 
-            # 更新されたユーザーを取得して返す
-            updated_user = self._get_user_by_id(user.id)
-            if not updated_user:
-                raise ValidationError("ユーザーの更新に失敗しました")
-            return updated_user
+            return user
         except ValueError as e:
             raise ValidationError(str(e))
 
