@@ -115,10 +115,10 @@ def generate_image(request):
 main_router = Router()
 
 # 各ルーターをプレフィックス付きで統合
-main_router.include_router(auth_router, prefix="/auth", tags=["auth"])
-main_router.include_router(public_router, prefix="/public", tags=["public"])
-main_router.include_router(payment_router, prefix="/payment", tags=["payment"])
-main_router.include_router(generate_router, prefix="/generate", tags=["generate"])
+main_router.add_router(auth_router, prefix="/auth", tags=["auth"])
+main_router.add_router(public_router, prefix="/public", tags=["public"])
+main_router.add_router(payment_router, prefix="/payment", tags=["payment"])
+main_router.add_router(generate_router, prefix="/generate", tags=["generate"])
 
 
 def create_app(event, context):
@@ -145,7 +145,7 @@ def create_app(event, context):
         return {"message": "Welcome to integrated router API"}
 
     # 統合されたルーターを登録
-    app.include_router(main_router)
+    app.add_router(main_router)
 
     return app
 

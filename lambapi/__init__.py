@@ -39,7 +39,7 @@ from .exceptions import (
     InternalServerError,
     ServiceUnavailableError,
 )
-from .error_handlers import error_handler, default_error_handler
+from .error_handlers import error_handler, default_error_handler, ErrorHandler
 from .dev_tools import serve
 
 # 認証機能（オプション）
@@ -84,6 +84,7 @@ __all__ = [
     "ServiceUnavailableError",
     "error_handler",
     "default_error_handler",
+    "ErrorHandler",
     "serve",
 ]
 

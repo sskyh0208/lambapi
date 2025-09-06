@@ -170,10 +170,10 @@ def create_app(event, context):
     app.add_middleware(cors_middleware)
 
     # ルーターを登録
-    app.include_router(public_router)
-    app.include_router(user_router)
-    app.include_router(product_router)
-    app.include_router(auth_router)
+    app.add_router(public_router)
+    app.add_router(user_router)
+    app.add_router(product_router)
+    app.add_router(auth_router)
 
     return app
 

@@ -146,7 +146,7 @@ class TestRouter:
         assert route.path == "/"
         assert route.method == "GET"
 
-    def test_include_router_basic(self):
+    def test_add_router_basic(self):
         """基本的なルーター統合のテスト"""
         # 子ルーター
         child_router = Router()
@@ -161,13 +161,13 @@ class TestRouter:
 
         # 親ルーター
         parent_router = Router()
-        parent_router.include_router(child_router)
+        parent_router.add_router(child_router)
 
         assert len(parent_router.routes) == 2
         paths = [route.path for route in parent_router.routes]
         assert "/items" in paths
 
-    def test_include_router_with_prefix(self):
+    def test_add_router_with_prefix(self):
         """プレフィックス付きルーター統合のテスト"""
         # 子ルーター
         child_router = Router()
@@ -178,13 +178,13 @@ class TestRouter:
 
         # 親ルーター
         parent_router = Router()
-        parent_router.include_router(child_router, prefix="/api")
+        parent_router.add_router(child_router, prefix="/api")
 
         assert len(parent_router.routes) == 1
         route = parent_router.routes[0]
         assert route.path == "/api/items"
 
-    def test_include_router_with_parent_prefix(self):
+    def test_add_router_with_parent_prefix(self):
         """親ルーターのプレフィックス付き統合のテスト"""
         # 子ルーター
         child_router = Router()
@@ -195,13 +195,13 @@ class TestRouter:
 
         # 親ルーター（プレフィックス付き）
         parent_router = Router(prefix="/api/v1")
-        parent_router.include_router(child_router)
+        parent_router.add_router(child_router)
 
         assert len(parent_router.routes) == 1
         route = parent_router.routes[0]
         assert route.path == "/api/v1/items"
 
-    def test_include_router_with_both_prefixes(self):
+    def test_add_router_with_both_prefixes(self):
         """両方のプレフィックス付きルーター統合のテスト"""
         # 子ルーター（プレフィックス付き）
         child_router = Router(prefix="/users")
@@ -212,13 +212,13 @@ class TestRouter:
 
         # 親ルーター（プレフィックス付き）
         parent_router = Router(prefix="/api/v1")
-        parent_router.include_router(child_router, prefix="/admin")
+        parent_router.add_router(child_router, prefix="/admin")
 
         assert len(parent_router.routes) == 1
         route = parent_router.routes[0]
         assert route.path == "/api/v1/admin/users/profile"
 
-    def test_include_router_nested(self):
+    def test_add_router_nested(self):
         """ネストしたルーター統合のテスト"""
         # 最下位ルーター
         items_router = Router()
@@ -233,11 +233,11 @@ class TestRouter:
 
         # 中間ルーター
         api_router = Router(prefix="/api")
-        api_router.include_router(items_router, prefix="/items")
+        api_router.add_router(items_router, prefix="/items")
 
         # 最上位ルーター
         main_router = Router(prefix="/v1")
-        main_router.include_router(api_router)
+        main_router.add_router(api_router)
 
         assert len(main_router.routes) == 2
         paths = [route.path for route in main_router.routes]
@@ -266,8 +266,8 @@ class TestRouter:
 
         # メインルーター
         main_router = Router(prefix="/api")
-        main_router.include_router(users_router, prefix="/users")
-        main_router.include_router(items_router, prefix="/items")
+        main_router.add_router(users_router, prefix="/users")
+        main_router.add_router(items_router, prefix="/items")
 
         assert len(main_router.routes) == 3
         paths = [route.path for route in main_router.routes]
@@ -320,7 +320,7 @@ class TestRouter:
         empty_router = Router()
         main_router = Router()
 
-        main_router.include_router(empty_router)
+        main_router.add_router(empty_router)
 
         assert len(main_router.routes) == 0
 
@@ -390,8 +390,8 @@ class TestRouter:
 
         non_router = NonRouter()
 
-        # include_router は Router インスタンスのみを処理
-        router.include_router(non_router)
+        # add_router は Router インスタンスのみを処理
+        router.add_router(non_router)
 
         assert len(router.routes) == 0
 
@@ -452,7 +452,7 @@ class TestRouter:
             return {"items": []}
 
         parent_router = Router(tags=["parent"])
-        parent_router.include_router(child_router, tags=["included"])
+        parent_router.add_router(child_router, tags=["included"])
 
         # ルートは正しく統合される
         assert len(parent_router.routes) == 1

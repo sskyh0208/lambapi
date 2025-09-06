@@ -290,12 +290,16 @@ def create_app(event, context):
             return {"message": f"No error for type: {error_type}"}
     
     # カスタムエラーハンドラー
+    from lambapi import ErrorHandler
+    
     class BusinessError(Exception):
         def __init__(self, message: str, code: str):
             self.message = message
             self.code = code
     
-    @app.error_handler(BusinessError)
+    error_handler = ErrorHandler()
+    
+    @error_handler.catch(BusinessError)
     def handle_business_error(error, request, context):
         return Response({
             "error": "BUSINESS_ERROR",
@@ -303,6 +307,8 @@ def create_app(event, context):
             "code": error.code,
             "request_id": context.aws_request_id
         }, status_code=400)
+    
+    app.add_error_handler(error_handler)
     
     @app.get("/business-error")
     def trigger_business_error():

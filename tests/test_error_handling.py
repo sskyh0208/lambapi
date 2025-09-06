@@ -225,7 +225,11 @@ class TestErrorHandling:
         class CustomError(Exception):
             pass
 
-        @app.error_handler(CustomError)
+        from lambapi import ErrorHandler
+
+        custom_error_handler = ErrorHandler()
+
+        @custom_error_handler.catch(CustomError)
         def handle_custom_error(error, request, context):
             return Response(
                 {
@@ -235,6 +239,8 @@ class TestErrorHandling:
                 },
                 status_code=418,
             )  # I'm a teapot
+
+        app.add_error_handler(custom_error_handler)
 
         @app.get("/custom-error")
         def custom_error_endpoint():
