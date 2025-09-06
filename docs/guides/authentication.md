@@ -8,10 +8,12 @@ LambAPI では、DynamoDB を使用した JWT ベースの認証システムを�
 
 - **JWT トークン認証**: セキュアなトークンベース認証
 - **DynamoDB バックエンド**: AWS サービスとの完全統合
+- **軽量な BaseUser**: 頻繁なインスタンス化に最適化
 - **カスタマイズ可能**: BaseUser を継承してカスタムユーザーモデルを作成
 - **ロールベース認証**: 細かいアクセス制御をサポート
 - **セッション管理**: DynamoDB を使用した永続セッション
 - **パスワード暗号化**: bcrypt による安全なハッシュ化
+- **カスタムトークン**: JWT ペイロードのフィールドを自由に設定可能
 
 ### アーキテクチャ
 
@@ -71,15 +73,24 @@ def create_app(event, context):
 
     @app.post("/auth/signup")
     def signup(signup_data: SignupRequest = Body(...)):
-        return auth.signup(signup_data.id, signup_data.password, name=signup_data.name)
+        # BaseUser インスタンスを作成してサインアップ
+        user = BaseUser()
+        user.id = signup_data.id
+        user.password = signup_data.password
+        if signup_data.name:
+            user.name = signup_data.name
+        return auth.signup(user)
 
     @app.post("/auth/login")
     def login(login_data: LoginRequest = Body(...)):
-        return auth.login(login_data.id, login_data.password)
+        # BaseUser インスタンスを作成してログイン
+        user = BaseUser()
+        user.id = login_data.id
+        return auth.login(user, login_data.password)
 
     @app.post("/auth/logout")
-    def logout(user: BaseUser = Authenticated(...)):
-        return auth.logout(user)
+    def logout(request):
+        return auth.logout(request)
 
     # 依存性注入による認証済みユーザー取得
     @app.get("/protected")
@@ -90,8 +101,7 @@ def create_app(event, context):
     def get_profile(user: BaseUser = Authenticated(...)):
         return {
             "id": user.id,
-            "created_at": user.created_at,
-            "last_login": user.last_login
+            "created_at": user.created_at.isoformat() if user.created_at else None
         }
 
     return app
@@ -109,47 +119,74 @@ from lambapi.auth import BaseUser, DynamoDBAuth
 class User(BaseUser):
     class Meta(BaseUser.Meta):
         table_name = "my_users"
-        secret_key = "your-secret-key-here"  # 本番環境では環境変数を使用
-        is_email_login = True
         is_role_permission = True
+        # JWT トークンに含めるフィールドをカスタマイズ
+        token_include_fields = ["id", "name", "role", "department", "permissions"]
 
-    def __init__(self, id, password, name="", email="", role="user"):
-        super().__init__(id, password)
+    def __init__(self, id=None, password=None, name="", email="", role="user", 
+                 department="", permissions=None):
+        # 必須フィールド
+        self.id = id
+        self.password = password
+        
+        # 自由にカスタムプロパティを追加
         self.name = name
         self.email = email
         self.role = role
+        self.department = department
+        self.permissions = permissions or []
 
 # カスタムユーザーで認証システムを初期化（secret_key 必須）
 auth = DynamoDBAuth(User, secret_key="your-secure-secret-key")
+
+# 使用例
+@app.post("/auth/signup")
+def signup(signup_data: SignupRequest = Body(...)):
+    user = User(
+        id=signup_data.id,
+        password=signup_data.password,
+        name=signup_data.name,
+        email=signup_data.email,
+        role="user",
+        department=signup_data.get("department", "general"),
+        permissions=["read"]
+    )
+    return auth.signup(user)
 ```
 
-### 3. ルーターを使用した認証エンドポイント
+### 3. パスワード検証
 
-認証エンドポイントを自動的に作成：
+パスワードのバリデーションは BaseUser で行うことができます：
 
 ```python
-from lambapi import API
-from lambapi.auth import BaseUser, DynamoDBAuth, create_auth_router
+from lambapi.auth import BaseUser
 
-def create_app(event, context):
-    app = API(event, context)
+class CustomUser(BaseUser):
+    class Meta(BaseUser.Meta):
+        password_min_length = 12
+        password_require_uppercase = True
+        password_require_lowercase = True
+        password_require_digit = True
+        password_require_special = True
 
-    # 認証システムと関連ルーターを作成
-    auth = DynamoDBAuth(User, secret_key="your-secure-secret-key")
-    auth_router = create_auth_router(auth)
+    def __init__(self, id=None, password=None):
+        self.id = id
+        self.password = password
 
-    # 認証ルーターを登録
-    app.include_router(auth_router)
+# インスタンスメソッドでの検証
+user = CustomUser()
+try:
+    user.validate_password("WeakPass")  # エラーが発生
+except ValueError as e:
+    print(f"パスワードエラー: {e}")
 
-    return app
+# クラスメソッドでの検証
+try:
+    CustomUser.validate_password("StrongPass123!")
+    print("パスワードは有効です")
+except ValueError as e:
+    print(f"パスワードエラー: {e}")
 ```
-
-これにより以下のエンドポイントが自動作成されます：
-- `POST /auth/signup` - ユーザー登録
-- `POST /auth/login` - ログイン
-- `POST /auth/logout` - ログアウト
-- `DELETE /auth/user/{user_id}` - ユーザー削除
-- `PUT /auth/user/{user_id}/password` - パスワード更新
 
 ## ロールベースアクセス制御
 
@@ -255,16 +292,15 @@ class User(BaseUser):
         endpoint_url = "http://localhost:8000"  # ローカル DynamoDB
 
         # JWT 設定
-        secret_key = "your-secret-key"          # JWT 署名キー
         expiration = 3600                       # トークン有効期限（秒）
+        
+        # JWT トークンのカスタマイズ
+        token_include_fields = ["id", "name", "role"]  # トークンに含めるフィールド
+        # None の場合は全フィールド（password以外）を含める
 
         # 機能設定
-        is_email_login = True                   # メールログインを有効化
         is_role_permission = True               # ロール権限を有効化
         enable_auth_logging = False             # 認証ログを有効化
-
-        # ID 設定
-        id_type = "uuid"                        # UUID 自動生成
 
         # パスワード要件
         password_min_length = 8                 # 最小文字数
@@ -277,55 +313,104 @@ class User(BaseUser):
         auto_timestamps = True                  # 自動タイムスタンプ
 ```
 
+### JWT トークンのカスタマイズ
+
+JWT ペイロードに含めるフィールドを自由に設定できます：
+
+```python
+class User(BaseUser):
+    class Meta(BaseUser.Meta):
+        # 特定のフィールドのみトークンに含める
+        token_include_fields = ["id", "role", "department", "team", "permissions"]
+
+    def __init__(self, id=None, password=None, name="", email="", role="user", 
+                 department="", team="", permissions=None, company="", location=""):
+        # 必須フィールド
+        self.id = id
+        self.password = password
+        
+        # カスタムプロパティを自由に設定
+        self.name = name
+        self.email = email
+        self.role = role
+        self.department = department
+        self.team = team
+        self.permissions = permissions or []
+        self.company = company
+        self.location = location
+
+# 使用例 - 自分の好きなプロパティを設定
+user = User(
+    id="user123",
+    password="hashedpassword",
+    name="山田太郎",
+    email="yamada@example.com",
+    role="admin",
+    department="engineering",
+    team="backend",
+    permissions=["read", "write", "admin"],
+    company="TechCorp",
+    location="Tokyo"
+)
+
+# token_include_fields に指定されたフィールドのみがJWTに含まれる
+payload = user.to_token_payload()
+# {"id": "user123", "role": "admin", "department": "engineering", "team": "backend", "permissions": [...], "iat": ..., "exp": ...}
+```
+
+### JWT トークンのデコード
+
+トークンからペイロードを取得：
+
+```python
+# クラスメソッドでのデコード
+try:
+    payload = BaseUser.decode_token_payload(token, secret_key)
+    user_id = payload.get("id")
+    role = payload.get("role")
+except ValueError as e:
+    print(f"トークンエラー: {e}")
+```
+
 ## API リファレンス
 
 ### ユーザー登録
 
-```http
-POST /auth/signup
-Content-Type: application/json
+DynamoDBAuth.signup() メソッドは BaseUser オブジェクトを受け取り、BaseUser オブジェクトを返します：
 
-{
-  "id": "user123",
-  "password": "password123",
-  "email": "user@example.com",     // is_email_login=True の場合必須
-  "name": "User Name",             // カスタムフィールド
-  "role": "user"                   // is_role_permission=True の場合
-}
-```
+```python
+# signup メソッドの使用
+user = BaseUser()
+user.id = "user123"
+user.password = "password123"
+user.name = "User Name"
 
-**レスポンス例:**
-```json
-{
-  "message": "ユーザー登録が完了しました",
-  "user_id": "user123"
-}
+try:
+    saved_user = auth.signup(user)
+    print(f"ユーザー登録完了: {saved_user.id}")
+except ValidationError as e:
+    print(f"バリデーションエラー: {e}")
+except ConflictError as e:
+    print(f"重複エラー: {e}")
 ```
 
 ### ログイン
 
-```http
-POST /auth/login
-Content-Type: application/json
+DynamoDBAuth.login() メソッドは BaseUser オブジェクトとパスワードを受け取り、JWT トークンを返します：
 
-{
-  "id": "user123",                 // ID またはメールでログイン
-  "password": "password123"
-}
-```
+```python
+# login メソッドの使用
+user = BaseUser()
+user.id = "user123"
+password = "password123"
 
-**レスポンス例:**
-```json
-{
-  "message": "ログインしました",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "user123",
-    "email": "user@example.com",
-    "name": "User Name",
-    "role": "user"
-  }
-}
+try:
+    token = auth.login(user, password)
+    print(f"ログイン成功。トークン: {token}")
+except AuthenticationError as e:
+    print(f"認証エラー: {e}")
+except ValidationError as e:
+    print(f"バリデーションエラー: {e}")
 ```
 
 ### ログアウト
@@ -494,24 +579,20 @@ class User(BaseUser):
 
 ```python
 import os
-from lambapi import API, create_lambda_handler
-from lambapi.auth import BaseUser, DynamoDBAuth, create_auth_router
+from lambapi import API, create_lambda_handler, Authenticated, Body
+from lambapi.auth import BaseUser, DynamoDBAuth
 from lambapi.exceptions import AuthenticationError
 
 class User(BaseUser):
     class Meta(BaseUser.Meta):
         table_name = os.getenv("DYNAMODB_TABLE", "users")
-        secret_key = os.getenv("JWT_SECRET", "dev-secret")
         expiration = 3600  # 1 時間
-        is_email_login = True
         is_role_permission = True
         enable_auth_logging = True
+        token_include_fields = ["id", "name", "role"]  # カスタムトークン
 
-    def __init__(self, id, password, name="", email="", role="user"):
-        super().__init__(id, password)
-        self.name = name
-        self.email = email
-        self.role = role
+    def __init__(self):
+        pass
 
 def create_app(event, context):
     app = API(event, context)
@@ -519,28 +600,50 @@ def create_app(event, context):
     # 認証システムの初期化
     auth = DynamoDBAuth(User)
 
-    # 認証エンドポイントの追加
-    auth_router = create_auth_router(auth)
-    app.include_router(auth_router)
+    # サインアップエンドポイント
+    @app.post("/auth/signup")
+    def signup(signup_data: dict = Body(...)):
+        user = User()
+        user.id = signup_data["id"]
+        user.password = signup_data["password"]
+        user.name = signup_data.get("name", "")
+        user.role = signup_data.get("role", "user")
+        
+        saved_user = auth.signup(user)
+        return {"message": "ユーザー登録完了", "user_id": saved_user.id}
+
+    # ログインエンドポイント
+    @app.post("/auth/login")
+    def login(login_data: dict = Body(...)):
+        user = User()
+        user.id = login_data["id"]
+        
+        token = auth.login(user, login_data["password"])
+        return {"message": "ログイン成功", "token": token}
+
+    # ログアウトエンドポイント
+    @app.post("/auth/logout")
+    def logout(request):
+        result = auth.logout(request)
+        return result
 
     # パブリックエンドポイント
     @app.get("/")
     def public_endpoint():
         return {"message": "Public access"}
 
-    # 認証が必要なエンドポイント
+    # 認証が必要なエンドポイント（依存性注入）
     @app.get("/profile")
-    def get_profile(request):
-        user = auth.get_authenticated_user(request)
+    def get_profile(user: User = Authenticated(...)):
         return {"profile": user.to_dict()}
 
     # ロール制限エンドポイント
     @app.get("/admin/stats")
     @auth.require_role("admin")
-    def admin_stats(user, request):
+    def admin_stats(user: User = Authenticated(...)):
         return {"stats": "admin only data", "user": user.id}
 
-    # カスタム認証チェック
+    # 手動認証チェック
     @app.put("/profile")
     def update_profile(request):
         try:
@@ -563,27 +666,36 @@ lambda_handler = create_lambda_handler(create_app)
 
 ```python
 import unittest
-import json
-from lambapi import Request
 from lambapi.auth import BaseUser, DynamoDBAuth
 
 class TestAuth(unittest.TestCase):
     def setUp(self):
-        self.auth = DynamoDBAuth(BaseUser)
+        self.auth = DynamoDBAuth(BaseUser, secret_key="test-secret")
 
     def test_user_signup(self):
         # ユーザー登録テスト
-        event = {
-            "body": json.dumps({
-                "id": "testuser",
-                "password": "password123"
-            })
-        }
-        request = Request(event)
-        result = self.auth.signup(request)
-
-        self.assertEqual(result["user_id"], "testuser")
-        self.assertIn("message", result)
+        user = BaseUser()
+        user.id = "testuser"
+        user.password = "password123"
+        
+        result = self.auth.signup(user)
+        self.assertEqual(result.id, "testuser")
+        
+    def test_login(self):
+        # ログインテスト
+        # まずサインアップ
+        user = BaseUser()
+        user.id = "testuser2"
+        user.password = "password123"
+        self.auth.signup(user)
+        
+        # ログイン
+        login_user = BaseUser()
+        login_user.id = "testuser2"
+        token = self.auth.login(login_user, "password123")
+        
+        self.assertIsInstance(token, str)
+        self.assertTrue(len(token) > 0)
 ```
 
 ## 参考資料

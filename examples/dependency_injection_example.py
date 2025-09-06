@@ -50,7 +50,8 @@ class CustomUser(BaseUser):
         endpoint_url = "http://localhost:8000"  # ローカル DynamoDB 用
 
     def __init__(self, id: Optional[str] = None, password: Optional[str] = None):
-        super().__init__(id, password)
+        self.id = id
+        self.password = password
         self.role = "user"  # デフォルトロール
         self.name = ""
         self.email = ""
