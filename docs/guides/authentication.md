@@ -46,33 +46,53 @@ pip install lambapi[auth]
 最もシンプルな使用方法：
 
 ```python
-from lambapi import API, create_lambda_handler
+from lambapi import API, create_lambda_handler, Authenticated, Body
 from lambapi.auth import BaseUser, DynamoDBAuth
+from dataclasses import dataclass
+
+@dataclass
+class LoginRequest:
+    id: str
+    password: str
+
+@dataclass
+class SignupRequest:
+    id: str
+    password: str
+    name: str = ""
 
 def create_app(event, context):
     app = API(event, context)
 
     # 認証システムの初期化（secret_key が必須）
-    auth = DynamoDBAuth(secret_key="your-secure-secret-key")
+    auth = DynamoDBAuth(BaseUser, secret_key="your-secure-secret-key")
     # または環境変数を設定: export LAMBAPI_SECRET_KEY="your-secure-secret-key"
-    # auth = DynamoDBAuth()  # 環境変数 LAMBAPI_SECRET_KEY から自動取得
+    # auth = DynamoDBAuth(BaseUser)  # 環境変数 LAMBAPI_SECRET_KEY から自動取得
 
     @app.post("/auth/signup")
-    def signup(request):
-        return auth.signup(request)
+    def signup(signup_data: SignupRequest = Body(...)):
+        return auth.signup(signup_data.id, signup_data.password, name=signup_data.name)
 
     @app.post("/auth/login")
-    def login(request):
-        return auth.login(request)
+    def login(login_data: LoginRequest = Body(...)):
+        return auth.login(login_data.id, login_data.password)
 
     @app.post("/auth/logout")
-    def logout(request):
-        return auth.logout(request)
+    def logout(user: BaseUser = Authenticated(...)):
+        return auth.logout(user)
 
+    # 依存性注入による認証済みユーザー取得
     @app.get("/protected")
-    def protected_endpoint(request):
-        user = auth.get_authenticated_user(request)
+    def protected_endpoint(user: BaseUser = Authenticated(...)):
         return {"message": f"Hello, {user.id}!"}
+
+    @app.get("/profile")
+    def get_profile(user: BaseUser = Authenticated(...)):
+        return {
+            "id": user.id,
+            "created_at": user.created_at,
+            "last_login": user.last_login
+        }
 
     return app
 

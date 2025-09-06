@@ -17,7 +17,15 @@ lambapi アプリケーションを AWS Lambda で使用する際の設定方法
 #### アプリケーションコード
 
 ```python title="app.py"
-from lambapi import API, create_lambda_handler
+from lambapi import API, create_lambda_handler, Query, Path, Body
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class CreateUserRequest:
+    name: str
+    email: str
+    age: Optional[int] = None
 
 def create_app(event, context):
     app = API(event, context)
@@ -27,8 +35,26 @@ def create_app(event, context):
         return {"message": "Hello from Lambda!"}
 
     @app.get("/users/{user_id}")
-    def get_user(user_id: str):
+    def get_user(user_id: str = Path(..., description="ユーザー ID")):
         return {"user_id": user_id, "name": f"User {user_id}"}
+
+    @app.get("/search")
+    def search(
+        q: str = Query(..., min_length=1, description="検索クエリ"),
+        limit: int = Query(10, ge=1, le=100, description="結果数")
+    ):
+        return {
+            "query": q,
+            "limit": limit,
+            "results": [f"result-{i}" for i in range(1, min(limit, 5) + 1)]
+        }
+
+    @app.post("/users")
+    def create_user(user_data: CreateUserRequest = Body(...)):
+        return {
+            "message": "User created successfully",
+            "user": {"name": user_data.name, "email": user_data.email, "age": user_data.age}
+        }
 
     return app
 

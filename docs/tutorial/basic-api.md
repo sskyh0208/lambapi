@@ -70,10 +70,10 @@ class UpdateUserRequest:
 USERS_DB = {}
 ```
 
-## 3. 基本的な API の実装
+## 3. 基本的な API の実装（依存性注入版）
 
 ```python title="app.py"
-from lambapi import API, Response, create_lambda_handler
+from lambapi import API, Response, create_lambda_handler, Query, Path, Body
 from lambapi.exceptions import NotFoundError, ValidationError
 from models import User, CreateUserRequest, UpdateUserRequest, USERS_DB
 import uuid
@@ -91,9 +91,13 @@ def create_app(event, context):
             "version": "1.0.0"
         }
 
-    # ユーザー一覧取得
+    # ユーザー一覧取得（依存性注入版）
     @app.get("/users")
-    def get_users(limit: int = 10, offset: int = 0, search: str = ""):
+    def get_users(
+        limit: int = Query(10, ge=1, le=100, description="取得件数"),
+        offset: int = Query(0, ge=0, description="オフセット"),
+        search: str = Query("", max_length=50, description="検索キーワード")
+    ):
         """ユーザー一覧を取得"""
         all_users = list(USERS_DB.values())
 
@@ -119,9 +123,9 @@ def create_app(event, context):
             }
         }
 
-    # 特定ユーザー取得
+    # 特定ユーザー取得（依存性注入版）
     @app.get("/users/{user_id}")
-    def get_user(user_id: str):
+    def get_user(user_id: str = Path(..., description="ユーザー ID")):
         """特定のユーザーを取得"""
         if user_id not in USERS_DB:
             raise NotFoundError("User", user_id)
@@ -129,80 +133,68 @@ def create_app(event, context):
         user = USERS_DB[user_id]
         return {"user": user.__dict__}
 
-    # ユーザー作成
+    # ユーザー作成（依存性注入版）
     @app.post("/users")
-    def create_user(request):
+    def create_user(user_data: CreateUserRequest = Body(...)):
         """新しいユーザーを作成"""
-        try:
-            data = request.json()
+        # user_data は自動的にバリデーション済み
 
-            # 基本的なバリデーション
-            if not data.get("name"):
-                raise ValidationError("Name is required", field="name")
-            if not data.get("email"):
-                raise ValidationError("Email is required", field="email")
-            if not isinstance(data.get("age"), int) or data["age"] < 0:
-                raise ValidationError("Age must be a positive integer", field="age")
+        # メール重複チェック
+        for existing_user in USERS_DB.values():
+            if existing_user.email == user_data.email:
+                raise ValidationError("Email already exists", field="email", value=user_data.email)
 
-            # メール重複チェック
-            for existing_user in USERS_DB.values():
-                if existing_user.email == data["email"]:
-                    raise ValidationError("Email already exists", field="email", value=data["email"])
+        # ユーザー作成
+        user_id = str(uuid.uuid4())
+        user = User(
+            id=user_id,
+            name=user_data.name,
+            email=user_data.email,
+            age=user_data.age
+        )
 
-            # ユーザー作成
-            user_id = str(uuid.uuid4())
-            user = User(
-                id=user_id,
-                name=data["name"],
-                email=data["email"],
-                age=data["age"]
-            )
+        USERS_DB[user_id] = user
 
-            USERS_DB[user_id] = user
+        return Response(
+            {
+                "message": "User created successfully",
+                "user": user.__dict__
+            },
+            status_code=201
+        )
 
-            return Response(
-                {
-                    "message": "User created successfully",
-                    "user": user.__dict__
-                },
-                status_code=201
-            )
-
-        except Exception as e:
-            if isinstance(e, ValidationError):
-                raise
-            raise ValidationError("Invalid request data")
-
-    # ユーザー更新
+    # ユーザー更新（依存性注入版）
     @app.put("/users/{user_id}")
-    def update_user(user_id: str, request):
+    def update_user(
+        user_id: str = Path(..., description="更新対象のユーザー ID"),
+        user_data: UpdateUserRequest = Body(...)
+    ):
         """既存ユーザーを更新"""
         if user_id not in USERS_DB:
             raise NotFoundError("User", user_id)
 
-        data = request.json()
         user = USERS_DB[user_id]
 
         # 更新可能なフィールドのみ処理
-        if "name" in data and data["name"]:
-            user.name = data["name"]
-        if "email" in data and data["email"]:
+        if user_data.name is not None:
+            user.name = user_data.name
+        if user_data.email is not None:
             # メール重複チェック（自分以外）
             for uid, existing_user in USERS_DB.items():
-                if uid != user_id and existing_user.email == data["email"]:
+                if uid != user_id and existing_user.email == user_data.email:
                     raise ValidationError("Email already exists", field="email")
-            user.email = data["email"]
-        if "age" in data and isinstance(data["age"], int) and data["age"] >= 0:
-            user.age = data["age"]
+            user.email = user_data.email
+        if user_data.age is not None:
+            user.age = user_data.age
 
         return {
             "message": "User updated successfully",
             "user": user.__dict__
         }
 
-    # ユーザー削除
+    # ユーザー削除（依存性注入版）
     @app.delete("/users/{user_id}")
-    def delete_user(user_id: str):
+    def delete_user(user_id: str = Path(..., description="削除対象のユーザー ID")):
         """ユーザーを削除"""
         if user_id not in USERS_DB:
             raise NotFoundError("User", user_id)

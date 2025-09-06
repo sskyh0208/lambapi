@@ -286,6 +286,181 @@ class FieldInfo:
 - **BodyInfo**: リクエストボディ用（`source = "body"`）
 - **AuthenticatedInfo**: 認証ユーザー用（`source = "authenticated"`）
 
+## 💡 実用的なパターン集
+
+### RESTful API の標準パターン
+
+```python
+from lambapi import API, Query, Path, Body, create_lambda_handler
+from dataclasses import dataclass
+from typing import Optional, List
+
+@dataclass
+class Product:
+    id: Optional[str] = None
+    name: str
+    price: float
+    category: str
+    in_stock: bool = True
+
+def create_app(event, context):
+    app = API(event, context)
+    
+    # コレクション取得（検索・フィルタ・ページング）
+    @app.get("/products")
+    def list_products(
+        # 検索とフィルタ
+        q: str = Query("", description="商品名検索"),
+        category: str = Query("", description="カテゴリフィルタ"),
+        in_stock: bool = Query(True, description="在庫有無フィルタ"),
+        
+        # 価格範囲
+        min_price: float = Query(0, ge=0, description="最低価格"),
+        max_price: float = Query(999999, ge=0, description="最高価格"),
+        
+        # ソート
+        sort_by: str = Query("name", regex=r"^(name|price|created_at)$", description="ソートフィールド"),
+        sort_order: str = Query("asc", regex=r"^(asc|desc)$", description="ソート順"),
+        
+        # ページング
+        page: int = Query(1, ge=1, description="ページ番号"),
+        per_page: int = Query(20, ge=1, le=100, description="1 ページあたりの件数")
+    ):
+        """商品一覧の取得"""
+        return {
+            "products": [],
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": 0,
+                "total_pages": 0
+            },
+            "filters": {
+                "q": q,
+                "category": category,
+                "price_range": [min_price, max_price]
+            }
+        }
+    
+    # 単一リソース取得
+    @app.get("/products/{product_id}")
+    def get_product(
+        product_id: str = Path(..., description="商品 ID"),
+        include_reviews: bool = Query(False, description="レビューを含めるか")
+    ):
+        """商品詳細の取得"""
+        product = {"id": product_id, "name": f"Product {product_id}"}
+        
+        if include_reviews:
+            product["reviews"] = [
+                {"rating": 5, "comment": "Great product!"}
+            ]
+            
+        return {"product": product}
+    
+    # 作成
+    @app.post("/products")
+    def create_product(product: Product = Body(..., description="作成する商品データ")):
+        """商品の作成"""
+        return {
+            "message": "商品を作成しました",
+            "product": {
+                "id": "generated-id",
+                "name": product.name,
+                "price": product.price,
+                "category": product.category
+            }
+        }
+    
+    # 更新
+    @app.put("/products/{product_id}")
+    def update_product(
+        product_id: str = Path(..., description="更新対象の商品 ID"),
+        product: Product = Body(..., description="更新データ")
+    ):
+        """商品の完全更新"""
+        return {
+            "message": f"商品 {product_id} を更新しました",
+            "product": {"id": product_id, **product.__dict__}
+        }
+    
+    # 部分更新
+    @app.patch("/products/{product_id}")
+    def patch_product(
+        product_id: str = Path(..., description="更新対象の商品 ID"),
+        updates: dict = Body(..., description="部分更新データ")
+    ):
+        """商品の部分更新"""
+        return {
+            "message": f"商品 {product_id} の一部を更新しました",
+            "updated_fields": list(updates.keys())
+        }
+    
+    # 削除
+    @app.delete("/products/{product_id}")
+    def delete_product(
+        product_id: str = Path(..., description="削除対象の商品 ID"),
+        soft_delete: bool = Query(True, description="論理削除するか")
+    ):
+        """商品の削除"""
+        action = "論理削除" if soft_delete else "物理削除"
+        return {"message": f"商品 {product_id} を{action}しました"}
+    
+    return app
+```
+
+### 入力バリデーションのベストプラクティス
+
+```python
+from lambapi import API, Query, Path, Body
+from dataclasses import dataclass, field
+from typing import Optional, List
+import re
+
+@dataclass
+class UserRegistration:
+    username: str = field(metadata={"min_length": 3, "max_length": 20})
+    email: str = field(metadata={"pattern": r"^[\w\.-]+@[\w\.-]+\.\w+$"})
+    password: str = field(metadata={"min_length": 8})
+    age: Optional[int] = field(default=None, metadata={"ge": 13, "le": 120})
+
+@app.get("/users/search")
+def search_users(
+    # 複数の検索条件を組み合わせ
+    username: str = Query("", min_length=0, max_length=20, description="ユーザー名で検索"),
+    email_domain: str = Query("", regex=r"^[\w\.-]+$", description="メールドメインで検索"),
+    
+    # 年齢範囲
+    min_age: int = Query(0, ge=0, le=120, description="最小年齢"),
+    max_age: int = Query(120, ge=0, le=120, description="最大年齢"),
+    
+    # アクティビティフィルタ
+    is_active: Optional[bool] = Query(None, description="アクティブユーザーのみ（null は全て）"),
+    last_login_days: int = Query(30, ge=1, le=365, description="最終ログイン日数以内"),
+    
+    # 地域フィルタ
+    country: str = Query("", regex=r"^[A-Z]{0,2}$", description="国コード（ISO 3166-1）"),
+    timezone: str = Query("", description="タイムゾーン"),
+    
+    # 結果制御
+    fields: str = Query("basic", regex=r"^(basic|full|minimal)$", description="返却フィールド"),
+    sort: str = Query("username", regex=r"^(username|created_at|last_login)$"),
+    order: str = Query("asc", regex=r"^(asc|desc)$"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """高度なユーザー検索機能"""
+    return {
+        "users": [],
+        "search_criteria": {
+            "username": username,
+            "age_range": [min_age, max_age],
+            "location": {"country": country, "timezone": timezone}
+        },
+        "pagination": {"limit": limit, "offset": offset}
+    }
+```
+
 ## ユーティリティ関数
 
 ### get_function_dependencies
