@@ -54,8 +54,8 @@ class DynamoDBAuth:
         import os
 
         self.user_model = custom_user or BaseUser
-        self.table_name = self.user_model._get_table_name()
-        self.expiration = self.user_model._get_expiration()
+        self.table_name = self.user_model.get_table_name()
+        self.expiration = self.user_model.get_expiration()
 
         # secret_key の優先順位
         if secret_key:
@@ -75,7 +75,7 @@ class DynamoDBAuth:
                 )
 
         # DynamoDB クライアントの初期化
-        endpoint_url = self.user_model._get_endpoint_url()
+        endpoint_url = self.user_model.get_endpoint_url()
         if endpoint_url:
             self.dynamodb = boto3.resource("dynamodb", endpoint_url=endpoint_url)
         else:
@@ -85,14 +85,14 @@ class DynamoDBAuth:
 
         # ログ設定
         self.logger = logging.getLogger(__name__)
-        if self.user_model._is_auth_logging_enabled():
+        if self.user_model.is_auth_logging_enabled():
             self.logger.setLevel(logging.INFO)
 
     def _log_auth_event(
         self, event: str, user_id: Optional[str] = None, details: Optional[Dict[str, Any]] = None
     ) -> None:
         """認証イベントのログ出力"""
-        if self.user_model._is_auth_logging_enabled():
+        if self.user_model.is_auth_logging_enabled():
             log_data = {
                 "event": event,
                 "timestamp": datetime.datetime.now().isoformat(),
@@ -118,31 +118,29 @@ class DynamoDBAuth:
             raise AuthenticationError("無効なトークンです")
 
     def _generate_session_id(self, user: BaseUser) -> str:
-        """ユーザー情報から短いセッション ID を生成"""
-        # ユーザー ID と secret_key を組み合わせてハッシュ化し、最初の 16 文字を使用
+        """ユーザー情報からセッション ID を生成"""
         user_info = f"{user.id}_{self.secret_key}"
         full_hash = hashlib.sha256(user_info.encode("utf-8")).hexdigest()
-        return full_hash[:16]  # 16 文字で十分一意
+        return full_hash[:16]
 
     def _save_session(self, user: BaseUser, token: str, payload: Dict[str, Any]) -> None:
         """セッション情報を DynamoDB に保存"""
         try:
             session_id = self._generate_session_id(user)
             ttl = (
-                int(payload["exp"].timestamp())
-                if isinstance(payload["exp"], datetime.datetime)
-                else payload["exp"]
+                payload["exp"]
+                if isinstance(payload["exp"], int)
+                else int(payload["exp"].timestamp())
+            )
+            exp_value = (
+                payload["exp"] if isinstance(payload["exp"], int) else (payload["exp"].isoformat())
             )
 
             session_item = {
                 "id": session_id,
                 "token": token,
                 "user_id": user.id,
-                "exp": (
-                    payload["exp"].isoformat()
-                    if isinstance(payload["exp"], datetime.datetime)
-                    else payload["exp"]
-                ),
+                "exp": exp_value,
                 "ttl": ttl,
             }
 
@@ -157,7 +155,6 @@ class DynamoDBAuth:
             session_id = self._generate_session_id(user)
             response = self.table.get_item(Key={"id": session_id})
             if "Item" in response:
-                # 保存されているトークンと一致するかも確認
                 stored_token = response["Item"].get("token")
                 return bool(stored_token == token)
             return False
@@ -175,30 +172,33 @@ class DynamoDBAuth:
 
     def _get_user_by_id(self, user_id: Optional[str]) -> Optional[BaseUser]:
         """ユーザー ID でユーザーを取得"""
-        try:
-            if not user_id:
-                return None
-            response = self.table.get_item(Key={"id": user_id})
-            if "Item" in response:
-                item = response["Item"]
-                # セッションアイテムかチェック（exp と ttl のみ含む場合はセッション）
-                if set(item.keys()) == {"id", "exp", "ttl"}:
-                    return None
+        if not user_id:
+            return None
 
-                # ユーザーオブジェクトを再構築
-                user = self.user_model.__new__(self.user_model)
-                for key, value in item.items():
-                    if key == "created_at" or key == "updated_at":
-                        try:
-                            setattr(user, key, datetime.datetime.fromisoformat(value))
-                        except (ValueError, TypeError):
-                            setattr(user, key, value)
-                    else:
+        try:
+            response = self.table.get_item(Key={"id": user_id})
+            if "Item" not in response:
+                return None
+
+            item = response["Item"]
+            # セッションアイテムかチェック
+            if set(item.keys()) == {"id", "exp", "ttl", "token", "user_id"}:
+                return None
+
+            # ユーザーオブジェクトを再構築
+            user = self.user_model.__new__(self.user_model)
+            for key, value in item.items():
+                if key in ("created_at", "updated_at"):
+                    try:
+                        setattr(user, key, datetime.datetime.fromisoformat(value))
+                    except (ValueError, TypeError):
                         setattr(user, key, value)
-                return user
+                else:
+                    setattr(user, key, value)
+            return user
         except Exception as e:
             self.logger.error(f"User retrieval error: {str(e)}")
-        return None
+            return None
 
     def _save_user(self, user: BaseUser) -> None:
         """ユーザーを DynamoDB に保存"""
@@ -231,7 +231,7 @@ class DynamoDBAuth:
         user.validate_password(user.password)
 
         # パスワードをハッシュ化
-        hashed_password = user._hash_password(user.password)
+        hashed_password = user.hash_password(user.password)
         user.password = hashed_password
 
         # 既存ユーザーチェック
@@ -389,7 +389,7 @@ class DynamoDBAuth:
                 user = self.get_authenticated_user(request)
 
                 # ロール権限チェック
-                if self.user_model._is_role_permission_enabled():
+                if self.user_model.is_role_permission_enabled():
                     user_role = getattr(user, "role", None)
                     if user_role not in required_roles:
                         raise AuthorizationError(f"必要なロール: {', '.join(required_roles)}")

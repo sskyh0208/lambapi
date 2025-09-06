@@ -43,16 +43,12 @@ class BaseUser:
     id: Optional[str]
     password: Optional[str]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         """
         基本的なユーザーモデルのコンストラクタ
         """
         for key, value in kwargs.items():
             setattr(self, key, value)
-
-    def _validate_password(self, password: str) -> None:
-        """パスワードのバリデーション"""
-        self.validate_password(password)
 
     @classmethod
     def validate_password(cls, password: str) -> None:
@@ -76,10 +72,6 @@ class BaseUser:
         ):
             raise ValueError("パスワードには特殊文字を含める必要があります")
 
-    def _hash_password(self, password: str) -> str:
-        """パスワードをハッシュ化"""
-        return self.hash_password(password)
-
     @classmethod
     def hash_password(cls, password: str) -> str:
         """パスワードをハッシュ化（クラスメソッド版）"""
@@ -95,13 +87,13 @@ class BaseUser:
             return False
 
         if not BCRYPT_AVAILABLE:
-            # bcrypt が利用できない場合は simple ハッシュで検証
             return self.password == hashlib.sha256(password.encode("utf-8")).hexdigest()
 
         result = bcrypt.checkpw(password.encode("utf-8"), self.password.encode("utf-8"))
         return bool(result)
 
-    def _validate_email(self, email: str) -> None:
+    @classmethod
+    def validate_email(cls, email: str) -> None:
         """メールアドレスのバリデーション"""
         email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(email_pattern, email):
@@ -116,13 +108,10 @@ class BaseUser:
             if not isinstance(field, str):
                 raise ValueError("token_include_fields の要素は文字列である必要があります")
 
-            # password は常に禁止
             if field == "password":
                 raise ValueError("password フィールドはトークンに含めることができません")
 
-            # 存在しないプロパティの警告（実行時チェック）
             if not hasattr(self, field):
-                # ログ出力などで警告するが、エラーにはしない
                 raise ValueError(f"警告: フィールド '{field}' は存在しません")
 
     def to_dict(self, include_password: bool = False) -> Dict[str, Any]:
@@ -219,10 +208,10 @@ class BaseUser:
         for key, value in kwargs.items():
             if hasattr(self, key):
                 if key == "password":
-                    self._validate_password(value)
-                    setattr(self, key, self._hash_password(value))
+                    self.validate_password(value)
+                    setattr(self, key, self.hash_password(value))
                 elif key == "email" and hasattr(self, "email"):
-                    self._validate_email(value)
+                    self.validate_email(value)
                     setattr(self, key, value)
                 else:
                     setattr(self, key, value)
@@ -231,26 +220,26 @@ class BaseUser:
             self.updated_at = datetime.datetime.now()
 
     @classmethod
-    def _get_table_name(cls) -> str:
+    def get_table_name(cls) -> str:
         """テーブル名を取得"""
         return cls.Meta.table_name
 
     @classmethod
-    def _get_expiration(cls) -> int:
+    def get_expiration(cls) -> int:
         """トークン有効期限を取得"""
         return cls.Meta.expiration
 
     @classmethod
-    def _is_role_permission_enabled(cls) -> bool:
+    def is_role_permission_enabled(cls) -> bool:
         """ロール権限が有効かどうか"""
         return cls.Meta.is_role_permission
 
     @classmethod
-    def _is_auth_logging_enabled(cls) -> bool:
+    def is_auth_logging_enabled(cls) -> bool:
         """認証ログが有効かどうか"""
         return cls.Meta.enable_auth_logging
 
     @classmethod
-    def _get_endpoint_url(cls) -> Optional[str]:
+    def get_endpoint_url(cls) -> Optional[str]:
         """DynamoDB エンドポイント URL を取得"""
         return cls.Meta.endpoint_url
