@@ -79,6 +79,31 @@ class ErrorHandlerRegistry:
         )
 
 
+class ErrorHandler:
+    """エラーハンドラークラス（デコレータ用）"""
+
+    def __init__(self) -> None:
+        self._registry = ErrorHandlerRegistry()
+
+    def catch(self, exception_type: Type[Exception]) -> Callable:
+        """エラーハンドラーデコレータ"""
+
+        def decorator(handler_func: Callable) -> Callable:
+            self._registry.register(exception_type, handler_func)
+            return handler_func
+
+        return decorator
+
+    def default(self, handler_func: Callable) -> Callable:
+        """デフォルトエラーハンドラーデコレータ"""
+        self._registry.set_default_handler(handler_func)
+        return handler_func
+
+    def handle_error(self, error: Exception, request: Request, context: Any) -> Response:
+        """エラーを処理"""
+        return self._registry.handle_error(error, request, context)
+
+
 # グローバルなエラーハンドラーレジストリ
 _global_registry = ErrorHandlerRegistry()
 

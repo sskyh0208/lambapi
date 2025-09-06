@@ -155,20 +155,6 @@ class API(BaseRouterMixin):
         """ミドルウェアを追加"""
         self._middleware.append(middleware)
 
-    def error_handler(self, exception_type: Type[Exception]) -> Callable:
-        """エラーハンドラーデコレータ"""
-
-        def decorator(handler_func: Callable) -> Callable:
-            self._error_registry.register(exception_type, handler_func)
-            return handler_func
-
-        return decorator
-
-    def default_error_handler(self, handler_func: Callable) -> Callable:
-        """デフォルトエラーハンドラーデコレータ"""
-        self._error_registry.set_default_handler(handler_func)
-        return handler_func
-
     def _update_route_index(self, route: Route) -> None:
         """ルートを高速検索用インデックスに追加"""
         method = route.method
@@ -187,7 +173,7 @@ class API(BaseRouterMixin):
             self._pattern_routes[method].append(route)
 
     def _rebuild_route_index(self) -> None:
-        """ルートインデックスを再構築（include_router 時に使用）"""
+        """ルートインデックスを再構築（add_router 時に使用）"""
         self._exact_routes.clear()
         self._pattern_routes.clear()
 
@@ -222,9 +208,7 @@ class API(BaseRouterMixin):
             expose_headers=expose_headers,
         )
 
-    def include_router(
-        self, router: Any, prefix: str = "", tags: Optional[List[str]] = None
-    ) -> None:
+    def add_router(self, router: Any, prefix: str = "", tags: Optional[List[str]] = None) -> None:
         """ルーターを追加"""
         from .router import Router
 
@@ -247,6 +231,19 @@ class API(BaseRouterMixin):
 
         # ルートインデックスを再構築
         self._rebuild_route_index()
+
+    def add_error_handler(self, error_handler: Any) -> None:
+        """エラーハンドラーを追加"""
+        from .error_handlers import ErrorHandler
+
+        if isinstance(error_handler, ErrorHandler):
+            # ErrorHandler のレジストリを現在のレジストリにマージ
+            for exception_type, handler in error_handler._registry._handlers.items():
+                self._error_registry.register(exception_type, handler)
+
+            # デフォルトハンドラーも設定
+            if error_handler._registry._default_handler:
+                self._error_registry.set_default_handler(error_handler._registry._default_handler)
 
     def _add_route(
         self,
@@ -542,7 +539,7 @@ class API(BaseRouterMixin):
                 user = auth_instance.get_authenticated_user(request)
 
                 # ロール権限チェック
-                if auth_instance.user_model._is_role_permission_enabled():
+                if auth_instance.user_model.is_role_permission_enabled():
                     user_role = getattr(user, "role", None)
                     if user_role not in required_roles:
                         from .exceptions import AuthorizationError

@@ -9,7 +9,7 @@
         - put
         - delete
         - patch
-        - include_router
+        - add_router
         - add_middleware
         - enable_cors
         - error_handler
@@ -145,7 +145,7 @@ PATCH リクエストのエンドポイントを定義します。
 
 ## ルーター統合
 
-### include_router(router, prefix="", tags=None)
+### add_router(router, prefix="", tags=None)
 
 Router インスタンスを API に統合します。
 
@@ -172,7 +172,7 @@ def get_user(id: str):
     return {"id": id}
 
 # メインアプリに統合
-app.include_router(user_router)
+app.add_router(user_router)
 # /users/ と /users/{id} が利用可能になる
 ```
 

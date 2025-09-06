@@ -41,9 +41,7 @@ class Router(BaseRouterMixin):
         self.routes.append(route)
         return handler
 
-    def include_router(
-        self, router: Any, prefix: str = "", tags: Optional[List[str]] = None
-    ) -> None:
+    def add_router(self, router: Any, prefix: str = "", tags: Optional[List[str]] = None) -> None:
         """他のルーターを統合"""
         if isinstance(router, Router):
             # プレフィックスやタグが指定されている場合は調整

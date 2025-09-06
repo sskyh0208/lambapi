@@ -41,7 +41,7 @@ class TestBaseUser:
     def test_password_verification(self):
         """パスワード検証のテスト"""
         # BaseUser.__init__がpassのみになったため、ハッシュ化はauth.signup経由で行われる
-        # ここでは_hash_passwordメソッドとverify_passwordメソッドをテスト
+        # ここではhash_passwordメソッドとverify_passwordメソッドをテスト
         user = BaseUser(id="test_user", password=BaseUser.hash_password("Password123!"))
         assert user.verify_password("Password123!") is True
         assert user.verify_password("wrong_password") is False
@@ -97,11 +97,11 @@ class TestBaseUser:
         user = CustomUser(
             "test", "Password123!", "valid@example.com", role="user", name="Test User"
         )
-        user._validate_email("valid@example.com")  # エラーが発生しないことを確認
+        user.validate_email("valid@example.com")  # エラーが発生しないことを確認
 
         # 無効なメールアドレス
         with pytest.raises(ValueError, match="有効なメールアドレスを入力してください"):
-            user._validate_email("invalid-email")
+            user.validate_email("invalid-email")
 
 
 if __name__ == "__main__":
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         print("✓ BaseUser 作成テスト")
         user = BaseUser()
         user.id = "test"
-        user.password = user._hash_password("Password123!")
+        user.password = user.hash_password("Password123!")
         assert user.verify_password("Password123!")
         print("✓ パスワード検証テスト")
 

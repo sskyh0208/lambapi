@@ -328,8 +328,8 @@ lambapi は以下の方法で拡張できます：
 user_router = Router(prefix="/users")
 admin_router = Router(prefix="/admin")
 
-app.include_router(user_router)
-app.include_router(admin_router)
+app.add_router(user_router)
+app.add_router(admin_router)
 ```
 
 ## まとめ
