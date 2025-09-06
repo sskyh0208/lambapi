@@ -380,13 +380,19 @@ def search_users(
     }
 
 # カスタムエラーハンドラー
-@app.error_handler(ValidationError)
+from lambapi import ErrorHandler
+
+error_handler = ErrorHandler()
+
+@error_handler.catch(ValidationError)
 def handle_validation_error(error, request, context):
     return {
         "error": "validation_failed",
         "message": str(error),
         "field": getattr(error, 'field', None)
     }
+
+app.add_error_handler(error_handler)
 ```
 
 ## 次のステップ

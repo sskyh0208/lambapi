@@ -12,8 +12,7 @@
         - add_router
         - add_middleware
         - enable_cors
-        - error_handler
-        - default_error_handler
+        - add_error_handler
         - handle_request
 
 lambapi のメインクラスです。すべての API 機能はこのクラスを通じて提供されます。
@@ -246,45 +245,43 @@ app.enable_cors(
 
 ## エラーハンドリング
 
-### error_handler(exception_type)
+### add_error_handler(error_handler)
 
-特定の例外タイプに対するカスタムエラーハンドラーを登録します。
+ErrorHandler インスタンスを API に追加します。
 
 **パラメータ:**
 
-- `exception_type` (Type[Exception]): 処理する例外タイプ
+- `error_handler` (ErrorHandler): エラーハンドラーインスタンス
 
 **例:**
 
 ```python
+from lambapi import ErrorHandler
+
 class BusinessError(Exception):
     def __init__(self, message: str, code: str):
         self.message = message
         self.code = code
 
-@app.error_handler(BusinessError)
+error_handler = ErrorHandler()
+
+@error_handler.catch(BusinessError)
 def handle_business_error(error, request, context):
     return Response({
         "error": "BUSINESS_ERROR",
         "message": error.message,
         "code": error.code
     }, status_code=422)
-```
 
-### default_error_handler(handler_func)
-
-すべての未処理例外に対するデフォルトエラーハンドラーを設定します。
-
-**例:**
-
-```python
-@app.default_error_handler
+@error_handler.default
 def handle_unknown_error(error, request, context):
     return Response({
         "error": "INTERNAL_ERROR",
         "message": "An unexpected error occurred",
         "request_id": context.aws_request_id
     }, status_code=500)
+
+app.add_error_handler(error_handler)
 ```
 
 ## リクエスト処理

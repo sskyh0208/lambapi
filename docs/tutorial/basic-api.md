@@ -365,12 +365,14 @@ if __name__ == "__main__":
 ## 5. エラーハンドリングの追加
 
 ```python title="error_handlers.py"
+from lambapi import ErrorHandler, Response
 from lambapi.exceptions import ValidationError, NotFoundError
 
-def add_error_handlers(app):
-    """カスタムエラーハンドラーを追加"""
+def create_error_handler():
+    """カスタムエラーハンドラーを作成"""
+    error_handler = ErrorHandler()
 
-    @app.error_handler(ValidationError)
+    @error_handler.catch(ValidationError)
     def handle_validation_error(error, request, context):
         return Response({
             "error": "VALIDATION_ERROR",
@@ -379,7 +381,7 @@ def add_error_handlers(app):
             "request_id": context.aws_request_id
         }, status_code=400)
 
-    @app.error_handler(NotFoundError)
+    @error_handler.catch(NotFoundError)
     def handle_not_found_error(error, request, context):
         return Response({
             "error": "NOT_FOUND",
@@ -387,13 +389,26 @@ def add_error_handlers(app):
             "request_id": context.aws_request_id
         }, status_code=404)
 
-    @app.default_error_handler
+    @error_handler.default
     def handle_unknown_error(error, request, context):
         return Response({
             "error": "INTERNAL_ERROR",
             "message": "An unexpected error occurred",
             "request_id": context.aws_request_id
         }, status_code=500)
+
+    return error_handler
+
+# メインアプリケーションで使用
+def create_app(event, context):
+    app = API(event, context)
+    
+    # エラーハンドラーを追加
+    error_handler = create_error_handler()
+    app.add_error_handler(error_handler)
+    
+    # ルート定義...
+    return app
 ```
 
 ## 6. 実用的な機能の追加
