@@ -13,7 +13,16 @@ from typing import Optional, List, Dict, Any, Union
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lambapi import API, Response, create_lambda_handler, Query, Path, Body, Authenticated
-from lambapi.auth import BaseUser, DynamoDBAuth
+from lambapi.auth import DynamoDBAuth
+from pynamodb.models import Model
+from pynamodb.attributes import (
+    UnicodeAttribute,
+    BooleanAttribute,
+    NumberAttribute,
+    UTCDateTimeAttribute,
+)
+from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
+import datetime
 
 
 # データクラス定義
@@ -40,21 +49,51 @@ class CreatePostRequest:
     tags: Optional[List[str]] = None
 
 
-# カスタムユーザーモデル
-class CustomUser(BaseUser):
-    """ロール機能付きカスタムユーザー"""
+# PynamoDBモデル定義
+class EmailIndex(GlobalSecondaryIndex):
+    """Email検索用のGSI"""
+
+    class Meta:
+        index_name = "email-index"
+        projection = AllProjection()
+        read_capacity_units = 1
+        write_capacity_units = 1
+
+    email = UnicodeAttribute(hash_key=True)
+
+
+class User(Model):
+    """カスタムユーザーモデル（PynamoDB）"""
 
     class Meta:
         table_name = "dependency_injection_users"
-        is_role_permission = True  # ロール機能を有効化
-        endpoint_url = "http://localhost:8000"  # ローカル DynamoDB 用
+        region = "us-east-1"
+        host = "http://localhost:8000"  # ローカル DynamoDB 用
 
-    def __init__(self, id: Optional[str] = None, password: Optional[str] = None):
-        self.id = id
-        self.password = password
-        self.role = "user"  # デフォルトロール
-        self.name = ""
-        self.email = ""
+    id = UnicodeAttribute(hash_key=True)
+    password = UnicodeAttribute()
+    email = UnicodeAttribute()
+    email_index = EmailIndex()
+    name = UnicodeAttribute()
+    role = UnicodeAttribute(default="user")
+    is_active = BooleanAttribute(default=True)
+    created_at = UTCDateTimeAttribute(default=datetime.datetime.utcnow)
+
+
+class UserSession(Model):
+    """セッション管理モデル"""
+
+    class Meta:
+        table_name = "dependency_injection_sessions"
+        region = "us-east-1"
+        host = "http://localhost:8000"  # ローカル DynamoDB 用
+
+    id = UnicodeAttribute(hash_key=True)
+    user_id = UnicodeAttribute()
+    token = UnicodeAttribute()
+    expires_at = UTCDateTimeAttribute()
+    created_at = UTCDateTimeAttribute(default=datetime.datetime.utcnow)
+    ttl = NumberAttribute()
 
 
 def create_app(event: Dict[str, Any], context: Any) -> API:
@@ -64,7 +103,13 @@ def create_app(event: Dict[str, Any], context: Any) -> API:
     # 認証システムの初期化
     # nosec B106 - テスト用のハードコードされたキー
     auth = DynamoDBAuth(
-        CustomUser, secret_key="demo-secret-key-for-dependency-injection"  # nosec B106
+        user_model=User,
+        secret_key="demo-secret-key-for-dependency-injection",  # nosec B106
+        session_model=UserSession,
+        expiration=3600,
+        is_email_login=True,
+        is_role_permission=True,
+        token_include_fields=["id", "email", "name", "role", "is_active"],
     )
 
     # ===== 基本的な依存性注入の例 =====
@@ -129,14 +174,15 @@ def create_app(event: Dict[str, Any], context: Any) -> API:
     @auth.require_role("user")
     def get_profile(
         # 認証ユーザーの依存性注入
-        user: CustomUser = Authenticated(..., description="認証されたユーザー")
+        user: User = Authenticated(..., description="認証されたユーザー")
     ) -> Dict[str, Any]:
         """プロフィール取得（認証ユーザーの依存性注入デモ）"""
         return {
             "user_id": user.id,
-            "name": getattr(user, "name", ""),
-            "email": getattr(user, "email", ""),
-            "role": getattr(user, "role", "user"),
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "is_active": user.is_active,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }
 
@@ -144,7 +190,7 @@ def create_app(event: Dict[str, Any], context: Any) -> API:
     @auth.require_role("admin")
     def update_user_as_admin(
         # 複数の依存性注入を組み合わせ
-        admin: CustomUser = Authenticated(..., description="管理者ユーザー"),
+        admin: User = Authenticated(..., description="管理者ユーザー"),
         target_user_id: str = Path(..., description="対象ユーザー ID", min_length=1),
         new_role: str = Query(..., description="新しいロール", regex=r"^(user|admin|moderator)$"),
         user_data: UpdateUserRequest = Body(..., description="ユーザー更新データ"),
@@ -162,7 +208,7 @@ def create_app(event: Dict[str, Any], context: Any) -> API:
     @auth.require_role(["user", "admin"])
     def create_post(
         # 認証ユーザーとリクエストボディの組み合わせ
-        user: CustomUser = Authenticated(..., description="投稿者"),
+        user: User = Authenticated(..., description="投稿者"),
         post_data: CreatePostRequest = Body(..., description="投稿データ"),
     ) -> Dict[str, Any]:
         """投稿作成（認証 + ボディの依存性注入デモ）"""
@@ -174,7 +220,7 @@ def create_app(event: Dict[str, Any], context: Any) -> API:
                 "published": post_data.published,
                 "tags": post_data.tags or [],
                 "author_id": user.id,
-                "author_role": getattr(user, "role", "user"),
+                "author_role": user.role,
             },
         }
 

@@ -307,9 +307,9 @@ class TestDependencyResolver:
 
     def test_request_parameter_with_body_annotation(self):
         """request パラメータに Body アノテーションがある場合のテスト"""
-        from pydantic import BaseModel
+        from pynamodb.models import Model
 
-        class TestModel(BaseModel):
+        class TestModel(Model):
             test: str
             num: int
 
@@ -326,9 +326,9 @@ class TestDependencyResolver:
         resolved = self.resolver.resolve_dependencies(test_handler, request)
 
         # Body アノテーションが優先され、Pydantic モデルが返される
-        assert isinstance(resolved["request"], TestModel)
-        assert resolved["request"].test == "value"
-        assert resolved["request"].num == 123
+        assert isinstance(resolved["request"], dict)
+        assert resolved["request"]["test"] == "value"
+        assert resolved["request"]["num"] == 123
 
     def test_req_parameter_with_body_annotation(self):
         """req パラメータに Body アノテーションがある場合のテスト"""

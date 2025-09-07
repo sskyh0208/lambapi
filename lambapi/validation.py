@@ -124,7 +124,7 @@ def convert_to_dict(obj: Any) -> Any:
     import decimal
     import enum
 
-    # Pydantic BaseModel の場合
+    # Pydantic Model の場合
     if hasattr(obj, "model_dump"):
         # Pydantic v2 対応
         result_dict = obj.model_dump()

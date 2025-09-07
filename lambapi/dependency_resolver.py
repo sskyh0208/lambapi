@@ -175,7 +175,7 @@ class DependencyResolver:
                 # dataclass の場合はバリデーションして変換
                 return validate_and_convert(json_data, param_type)
             elif self._is_pydantic_model(param_type):
-                # Pydantic BaseModel の場合はバリデーションして変換
+                # Pydantic Model の場合はバリデーションして変換
                 return param_type(**json_data)
             else:
                 # その他の型の場合も try to convert
@@ -227,7 +227,7 @@ class DependencyResolver:
             raise ValidationError(f"{param_source} '{param_name}': {str(e)}")
 
     def _is_pydantic_model(self, param_type: Type) -> bool:
-        """パラメータタイプが Pydantic の BaseModel かチェック"""
+        """パラメータタイプが Pydantic の Model かチェック"""
         try:
             # Pydantic v2 対応
             if hasattr(param_type, "__pydantic_core_schema__"):
@@ -235,12 +235,12 @@ class DependencyResolver:
             # Pydantic v1 対応
             if hasattr(param_type, "__config__") and hasattr(param_type, "__fields__"):
                 return True
-            # BaseModel 継承チェック
+            # Model 継承チェック
             import inspect
 
             if inspect.isclass(param_type):
                 for base in inspect.getmro(param_type):
-                    if base.__name__ == "BaseModel" and base.__module__.startswith("pydantic"):
+                    if base.__name__ == "Model" and base.__module__.startswith("pydantic"):
                         return True
             return False
         except Exception:

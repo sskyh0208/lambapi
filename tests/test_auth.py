@@ -1,399 +1,494 @@
 """
-認証機能のテスト
+DynamoDBAuth統合テスト
 
-DynamoDB 認証機能の基本的なテストを行います。
+新しいPynamoDB対応DynamoDBAuthの統合テスト
 """
 
 import pytest
 import json
-import datetime
-from lambapi.auth import BaseUser, DynamoDBAuth
-from lambapi import Request
+from unittest.mock import MagicMock, patch
+from typing import Optional
+
+from pynamodb.models import Model
+from pynamodb.attributes import (
+    UnicodeAttribute,
+    BooleanAttribute,
+    UTCDateTimeAttribute,
+    NumberAttribute,
+)
+from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
+
+from lambapi import API, Query, Path, Body, Authenticated, create_lambda_handler
+from lambapi.auth.dynamodb_auth import DynamoDBAuth
 from lambapi.exceptions import ValidationError, AuthenticationError, ConflictError
 
-# boto3 は動的インポート
-try:
-    import boto3
 
-    BOTO3_AVAILABLE = True
-except ImportError:
-    BOTO3_AVAILABLE = False
+class EmailIndex(GlobalSecondaryIndex):
+    """メールアドレスでの検索用GSI"""
 
+    class Meta:
+        index_name = "email-index"
+        projection = AllProjection()
+        read_capacity_units = 1
+        write_capacity_units = 1
 
-class CustomUser(BaseUser):
-    """テスト用カスタムユーザー"""
-
-    class Meta(BaseUser.Meta):
-        table_name = "test_users"
-        expiration = 3600
-        is_role_permission = True
-        enable_auth_logging = False
-        endpoint_url = "http://localhost:8000"
-
-    def __init__(self, id, password, email, name, role="user"):
-        self.id = id
-        self.password = password
-        self.email = email
-        self.name = name
-        self.role = role
-        self.is_admin = role == "admin"
+    email = UnicodeAttribute(hash_key=True)
 
 
-class TestBaseUser:
-    """BaseUser クラスのテスト"""
+class TestUser(Model):
+    """テスト用ユーザーモデル"""
 
-    def test_base_user_creation(self):
-        """BaseUser の基本的な作成テスト"""
-        user = BaseUser()
-        # BaseUser.__init__はpassのみなので属性は手動設定
-        user.id = "test_user"
-        user.password = "Password123!"
-        assert user.id == "test_user"
-        assert (
-            user.password == "Password123!"
-        )  # 生パスワードがそのまま保存される  # 生パスワードがそのまま保存される  # ハッシュ化されているか  # nosec B105
+    class Meta:
+        table_name = "test-users"
+        region = "us-east-1"
+        host = "http://localhost:8000"
 
-    def test_password_verification(self):
-        """パスワード検証のテスト（signup後のハッシュ化パスワードで検証）"""
-        # BaseUser.__init__がpassのみになったため、このテストは無効
-        # パスワード検証はauth.signupを通してテストする
-        pass
+    id = UnicodeAttribute(hash_key=True)
+    password = UnicodeAttribute()
+    email = UnicodeAttribute()
+    email_index = EmailIndex()
+    name = UnicodeAttribute()
+    role = UnicodeAttribute(default="user")
+    is_active = BooleanAttribute(default=True)
 
-    def test_custom_user_creation(self):
-        """カスタムユーザーの作成テスト"""
-        user = CustomUser("custom_user", "Password123!", "test@example.com", "Test User")
-        assert user.id == "custom_user"
-        assert user.email == "test@example.com"
-        assert user.role == "user"
-        assert user.name == "Test User"
 
-    def test_to_dict(self):
-        """辞書変換のテスト"""
-        user = CustomUser("test_user", "Password123!", "Test User", "test@example.com")
-        user_dict = user.to_dict()
+class TestUserSession(Model):
+    """テスト用ユーザーセッションモデル"""
 
-        assert "id" in user_dict
-        assert "email" in user_dict
-        assert "password" not in user_dict  # パスワードは除外される
+    class Meta:
+        table_name = "test-user-sessions"
+        region = "us-east-1"
+        host = "http://localhost:8000"
 
-    def test_to_token_payload(self):
-        """トークンペイロード作成のテスト"""
-        user = CustomUser("test_user", "Password123!", "Test User", "test@example.com")
-        payload = user.to_token_payload()
+    id = UnicodeAttribute(hash_key=True)
+    user_id = UnicodeAttribute()
+    token = UnicodeAttribute()
+    expires_at = NumberAttribute()
+    from datetime import datetime
 
-        assert "id" in payload
-        assert "email" in payload
-        assert "iat" in payload
-        assert "exp" in payload
-        assert "password" not in payload
+    created_at = UTCDateTimeAttribute(default=datetime.now)
 
-    def test_custom_token_fields(self):
-        """カスタムトークンフィールドのテスト"""
 
-        # カスタムユーザーでtoken_include_fieldsを指定
-        class CustomTokenUser(BaseUser):
-            class Meta(BaseUser.Meta):
-                token_include_fields = ["id", "name", "role"]
+class MockDynamoDBAuth(DynamoDBAuth):
+    """テスト用のモックDynamoDBAuth"""
 
-        user = CustomTokenUser()
-        user.id = "test_user"
-        user.name = "Test User"
-        user.email = "test@example.com"
-        user.role = "admin"
-
-        payload = user.to_token_payload()
-
-        # 指定されたフィールドのみ含まれる
-        assert "id" in payload
-        assert "name" in payload
-        assert "role" in payload
-        assert "email" not in payload  # 指定されていない
-        assert "password" not in payload  # 常に除外
-        # JWT標準フィールドは含まれる
-        assert "iat" in payload
-        assert "exp" in payload
-
-    def test_token_fields_validation(self):
-        """トークンフィールドバリデーションのテスト"""
-        user = BaseUser()
-        user.id = "test"
-        user.password = "pass"
-
-        # passwordを含めようとするとエラー
-        with pytest.raises(
-            ValueError, match="password フィールドはトークンに含めることができません"
-        ):
-            user._validate_token_fields(["id", "password"])
-
-        # 文字列でない要素があるとエラー
-        with pytest.raises(
-            ValueError, match="token_include_fields の要素は文字列である必要があります"
-        ):
-            user._validate_token_fields(["id", 123])
-
-        # リスト以外だとエラー
-        with pytest.raises(
-            ValueError, match="token_include_fields はリスト形式である必要があります"
-        ):
-            user._validate_token_fields("invalid")
-
-    def test_validate_password_public(self):
-        """公開されたvalidate_passwordメソッドのテスト"""
-        user = BaseUser()
-
-        # 短すぎるパスワード
-        with pytest.raises(ValueError, match="パスワードは8文字以上である必要があります"):
-            user.validate_password("short")
-
-        # 有効なパスワード
-        user.validate_password("ValidPassword123")  # エラーが発生しないことを確認
-
-    def test_decode_token_payload(self):
-        """トークンデコードのテスト"""
-        user = BaseUser()
-        user.id = "test_user"
-        user.name = "Test User"
-
-        # テスト用の秘密鍵
-        secret_key = "test_secret_key"
-
-        # 現在時刻を使用してトークン生成
-        import jwt
-
-        now = datetime.datetime.now()
-        payload = {
-            "id": "test_user",
-            "name": "Test User",
-            "iat": int(now.timestamp()),
-            "exp": int((now + datetime.timedelta(hours=1)).timestamp()),
+    def __init__(self, **kwargs):
+        # テスト用のデフォルト設定
+        defaults = {
+            "user_model": TestUser,
+            "session_model": TestUserSession,
+            "secret_key": "test_secret_key_for_testing",
+            "expiration": 3600,
+            "is_email_login": True,
+            "is_role_permission": True,
+            "token_include_fields": ["id", "email", "name", "role"],
+            "password_min_length": 8,
+            "password_require_digit": False,
         }
-        token = jwt.encode(payload, secret_key, algorithm="HS256")
+        defaults.update(kwargs)
+        super().__init__(**defaults)
+        self._init_save_mock_user()
 
-        # デコード
-        decoded = BaseUser.decode_token_payload(token, secret_key)
-
-        assert decoded["id"] == "test_user"
-        assert decoded["name"] == "Test User"
-        assert "iat" in decoded
-        assert "exp" in decoded
-
-
-def _dynamodb_available():
-    """DynamoDB ローカルが利用可能かチェック"""
-    try:
-        import boto3
-
-        dynamodb = boto3.resource("dynamodb", endpoint_url="http://localhost:8000")
-        # 簡単な接続テスト
-        dynamodb.meta.client.list_tables()
-        return True
-    except Exception:
-        return False
-
-
-@pytest.mark.skipif(not BOTO3_AVAILABLE, reason="boto3 not available")
-@pytest.mark.skipif(not _dynamodb_available(), reason="DynamoDB not available")
-class TestDynamoDBAuth:
-    """DynamoDBAuth クラスのテスト"""
-
-    def test_secret_key_required(self):
-        """secret_key が必要であることのテスト"""
-        # secret_key を指定しない場合、ValueError が発生することを確認
-        with pytest.raises(ValueError, match="Secret key is required"):
-            DynamoDBAuth(CustomUser)
-
-    def test_explicit_secret_key(self):
-        """明示的 secret_key 指定のテスト"""
-        auth = DynamoDBAuth(CustomUser, secret_key="explicit_key")  # nosec B106
-        assert auth.secret_key == "explicit_key"  # nosec B105
-
-    def test_environment_variable_secret_key(self):
-        """環境変数 secret_key のテスト"""
-        import os
-
-        os.environ["LAMBAPI_SECRET_KEY"] = "env_key"  # nosec B105
-        try:
-            auth = DynamoDBAuth(CustomUser)
-            assert auth.secret_key == "env_key"  # nosec B105
-        finally:
-            # 環境変数をクリア
-            os.environ.pop("LAMBAPI_SECRET_KEY", None)
-
-    def setup_method(self):
-        """テストセットアップ"""
-        # 実際の DynamoDB ローカルを使用（テスト用 secret_key 指定）
-        self.auth = DynamoDBAuth(CustomUser, secret_key="test_secret_key")  # nosec B106
-
-        # テスト用テーブルを作成
-        self._create_test_table()
-
-        # テーブルをクリア
-        self._clear_table()
-
-    def _create_test_table(self):
-        """テスト用テーブルを作成"""
-        try:
-            # テーブルが既に存在するかチェック
-            self.auth.table.table_status
-        except Exception:
-            # テーブルが存在しない場合は作成
-            dynamodb = boto3.resource("dynamodb", endpoint_url="http://localhost:8000")
-            table = dynamodb.create_table(
-                TableName="test_users",
-                KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
-                AttributeDefinitions=[
-                    {"AttributeName": "id", "AttributeType": "S"},
-                    {"AttributeName": "email", "AttributeType": "S"},
-                ],
-                BillingMode="PAY_PER_REQUEST",
-                GlobalSecondaryIndexes=[
-                    {
-                        "IndexName": "email-index",
-                        "KeySchema": [{"AttributeName": "email", "KeyType": "HASH"}],
-                        "Projection": {"ProjectionType": "ALL"},
-                    }
-                ],
-            )
-            # テーブルが利用可能になるまで待機
-            table.wait_until_exists()
-
-    def _clear_table(self):
-        """テーブルのデータをクリア"""
-        try:
-            # 全アイテムをスキャンして削除
-            response = self.auth.table.scan()
-            for item in response.get("Items", []):
-                self.auth.table.delete_item(Key={"id": item["id"]})
-        except Exception:
-            pass  # nosec B110
-
-    def teardown_method(self):
-        """テスト後処理"""
-        self._clear_table()
-
-    def test_auth_initialization(self):
-        """認証システムの初期化テスト"""
-        assert self.auth.user_model == CustomUser
-        assert self.auth.table_name == "test_users"
-        assert self.auth.secret_key == "test_secret_key"  # nosec B105
-        assert self.auth.expiration == 3600
-
-    def test_signup_success(self):
-        """ユーザー登録成功のテスト"""
-        # BaseUserオブジェクトを作成（生パスワードを渡す）
-        user = CustomUser(
-            id="new_user",
-            password="Password123!",  # 生パスワード
-            email="new@example.com",
-            name="New User",
-            role="user",
-        )
-
-        result = self.auth.signup(user)
-
-        # BaseUserオブジェクトが返される
-        assert isinstance(result, BaseUser)
-        assert result.id == "new_user"
-        # パスワードがハッシュ化されているか確認
-        assert result.password != "Password123!"  # 生パスワードと異なる  # 生パスワードと異なる
-
-    def test_signup_duplicate_user(self):
-        """重複ユーザー登録のテスト"""
-        # 最初にユーザーを作成（生パスワードを渡す）
-        user1 = CustomUser(
-            id="existing_user",
-            password="Password123!",  # 生パスワード
-            email="existing@example.com",
-            name="Existing User",
-            role="user",
-        )
-        self.auth.signup(user1)
-
-        # 同じIDでユーザー作成を試みる
-        user2 = CustomUser(
-            id="existing_user",  # 同じID
-            password="Password456!",  # 生パスワード
-            email="different@example.com",
-            name="Different User",
-            role="user",
-        )
-
-        with pytest.raises(ConflictError):
-            self.auth.signup(user2)
-
-    def test_login_success(self):
-        """ログイン成功のテスト"""
-        # まずユーザーを作成（生パスワードを渡す）
-        user = CustomUser(
-            id="test_user",
-            password="Password123!",  # 生パスワード
+    def _init_save_mock_user(self):
+        """テスト用のユーザー保存（モック）"""
+        user = TestUser(
+            id="testuser",
+            password=self._hash_password("Password123"),
             email="test@example.com",
             name="Test User",
             role="user",
         )
-        self.auth.signup(user)
+        user.save()
 
-        # ログイン（生パスワードを渡す）
-        result = self.auth.login("test_user", "Password123!")  # 生パスワード
+        admin = TestUser(
+            id="admin",
+            password=self._hash_password("AdminPass123"),
+            email="admin@example.com",
+            name="Admin User",
+            role="admin",
+        )
+        admin.save()
 
-        # トークンが返される
-        assert isinstance(result, str)
-        assert len(result) > 0  # トークンが空でない
+    def get_user_by_id(self, user_id):
+        """テスト用のユーザー取得（モック）"""
+        if user_id == "testuser":
+            return TestUser.get("testuser", consistent_read=True)
+        elif user_id == "admin":
+            return TestUser.get("admin", consistent_read=True)
+        return None
 
-    def test_login_invalid_credentials(self):
-        """ログイン失敗のテスト"""
-        with pytest.raises(AuthenticationError):
-            self.auth.login("nonexistent_user", "Password123!")
 
-    def test_logout(self):
-        """ログアウトのテスト"""
-        # まずユーザーを作成してログイン（生パスワードを渡す）
-        user = CustomUser(
-            id="logout_test_user",
-            password="Password123!",  # 生パスワード
-            email="logout@example.com",
-            name="Logout User",
-            role="user",
+class TestDynamoDBAuthConstructor:
+    """DynamoDBAuthコンストラクタのテスト"""
+
+    def test_basic_constructor(self):
+        """基本的なコンストラクタのテスト"""
+        auth = DynamoDBAuth(
+            user_model=TestUser,
+            session_model=TestUserSession,
+            secret_key="test_secret",
+        )
+
+        assert auth.user_model == TestUser
+        assert auth.secret_key == "test_secret"
+        assert auth.expiration == 3600
+        assert auth.is_email_login is False
+        assert auth.password_min_length == 8
+
+    def test_constructor_with_all_params(self):
+        """全パラメータ指定のテスト"""
+        auth = DynamoDBAuth(
+            user_model=TestUser,
+            session_model=TestUserSession,
+            secret_key="test_secret",
+            expiration=7200,
+            is_email_login=True,
+            is_role_permission=True,
+            token_include_fields=["id", "name"],
+            password_min_length=10,
+            password_require_uppercase=True,
+        )
+
+        assert auth.expiration == 7200
+        assert auth.is_email_login is True
+        assert auth.token_include_fields == ["id", "name"]
+        assert auth.password_min_length == 10
+        assert auth.password_require_uppercase is True
+
+    def test_constructor_validation_errors(self):
+        """コンストラクタのバリデーションエラー"""
+        # 無効なuser_model
+        with pytest.raises(ValueError, match="must be a PynamoDB Model"):
+            DynamoDBAuth(user_model=str, session_model=TestUserSession, secret_key="test")
+
+        # email_login=True but no email index
+        class NoIndexUser(Model):
+            class Meta:
+                table_name = "no-index"
+
+            id = UnicodeAttribute(hash_key=True)
+
+        with pytest.raises(ValueError, match="requires a GlobalSecondaryIndex"):
+            DynamoDBAuth(
+                user_model=NoIndexUser,
+                session_model=TestUserSession,
+                secret_key="test",
+                is_email_login=True,
+            )
+
+        # 無効なtoken_include_fields
+        with pytest.raises(
+            ValueError, match="password フィールドはトークンに含めることができません"
+        ):
+            DynamoDBAuth(
+                user_model=TestUser,
+                session_model=TestUserSession,
+                secret_key="test",
+                token_include_fields=["id", "password"],
+            )
+
+
+class TestPasswordValidation:
+    """パスワードバリデーションのテスト"""
+
+    def test_password_validation_basic(self):
+        """基本的なパスワードバリデーション"""
+        auth = DynamoDBAuth(user_model=TestUser, session_model=TestUserSession, secret_key="test")
+
+        # 正常なパスワード
+        auth.validate_password("password123")
+
+        # 短すぎるパスワード
+        with pytest.raises(ValueError, match="8文字以上"):
+            auth.validate_password("short")
+
+    def test_password_requirements(self):
+        """パスワード要件のテスト"""
+        auth = DynamoDBAuth(
+            user_model=TestUser,
+            session_model=TestUserSession,
+            secret_key="test",
+            password_require_uppercase=True,
+            password_require_lowercase=True,
+            password_require_digit=True,
+            password_require_special=True,
+        )
+
+        # 全要件を満たすパスワード
+        auth.validate_password("Password123!")
+
+        # 大文字不足
+        with pytest.raises(ValueError, match="大文字を含める"):
+            auth.validate_password("password123!")
+
+        # 小文字不足
+        with pytest.raises(ValueError, match="小文字を含める"):
+            auth.validate_password("PASSWORD123!")
+
+        # 数字不足
+        with pytest.raises(ValueError, match="数字を含める"):
+            auth.validate_password("Password!")
+
+        # 特殊文字不足
+        with pytest.raises(ValueError, match="特殊文字を含める"):
+            auth.validate_password("Password123")
+
+
+class TestUserOperations:
+    """ユーザー操作のテスト"""
+
+    def setup_method(self):
+        """テストセットアップ（ユーザーテーブルを毎回初期化）"""
+        for user in TestUser.scan():
+            user.delete()
+        self.auth = MockDynamoDBAuth()
+
+    def test_signup_success(self):
+        """ユーザー登録成功のテスト"""
+        user = TestUser(
+            id="newuser", password="Password123", email="new@example.com", name="New User"
+        )
+        token = self.auth.signup(user)
+        assert isinstance(token, str)
+        assert len(token) > 0
+
+    def test_signup_conflict(self):
+        """既存ユーザーでの登録エラー"""
+        # 先に登録
+        user = TestUser(
+            id="existing",
+            password="Password123",
+            email="existing@example.com",
+            name="Existing User",
         )
         self.auth.signup(user)
+        # 同じIDで再登録
+        with pytest.raises(ConflictError, match="ユーザーIDは既に存在します"):
+            self.auth.signup(user)
 
-        # ログイン（生パスワードを渡す）
-        token = self.auth.login("logout_test_user", "Password123!")  # 生パスワード
+    def test_login_success(self):
+        """ログイン成功のテスト"""
+        token = self.auth.login("testuser", "Password123")
 
-        # ログアウトリクエストモック（既存のlogoutメソッドを使用）
-        mock_event = {"headers": {"Authorization": f"Bearer {token}"}}
-        logout_request = Request(mock_event)
+        assert isinstance(token, str)
+        assert len(token) > 0
 
-        result = self.auth.logout(logout_request)
-        assert result["message"] == "ログアウトしました"
+    def test_login_invalid_user(self):
+        """存在しないユーザーでのログインエラー"""
+        with pytest.raises(AuthenticationError, match="認証に失敗しました"):
+            self.auth.login("nonexistent", "password")
+
+    def test_login_invalid_password(self):
+        """間違ったパスワードでのログインエラー"""
+        with pytest.raises(AuthenticationError, match="認証に失敗しました"):
+            self.auth.login("testuser", "wrongpassword")
+
+
+class TestEmailLogin:
+    """emailログインのテスト"""
+
+    def setup_method(self):
+        """テストセットアップ"""
+        self.auth = MockDynamoDBAuth()
+
+    @patch.object(EmailIndex, "query")
+    def test_email_login_success(self, mock_query):
+        """emailログイン成功のテスト"""
+        # モックユーザー作成
+        user = TestUser()
+        user.id = "testuser"
+        user.password = self.auth._hash_password("Password123")
+        user.email = "test@example.com"
+
+        mock_query.return_value = [user]
+
+        token = self.auth.email_login("test@example.com", "Password123")
+
+        assert isinstance(token, str)
+        assert len(token) > 0
+
+    @patch.object(EmailIndex, "query")
+    def test_email_login_user_not_found(self, mock_query):
+        """存在しないemailでのログインエラー"""
+        mock_query.return_value = []
+
+        with pytest.raises(AuthenticationError, match="認証に失敗しました"):
+            self.auth.email_login("nonexistent@example.com", "password")
+
+    def test_email_login_disabled(self):
+        """emailログインが無効な場合のエラー"""
+        auth = DynamoDBAuth(
+            user_model=TestUser,
+            session_model=TestUserSession,
+            secret_key="test",
+            is_email_login=False,
+        )
+
+        auth = MockDynamoDBAuth(is_email_login=False)
+        with pytest.raises(ValueError, match="Emailログインは無効化されています"):
+            auth.email_login("test@example.com", "password")
+
+
+class TestTokenGeneration:
+    """トークン生成のテスト"""
+
+    def setup_method(self):
+        """テストセットアップ"""
+        self.auth = MockDynamoDBAuth()
+
+    def test_token_payload_with_include_fields(self):
+        """token_include_fieldsを使ったペイロード生成"""
+        user = TestUser()
+        user.id = "testuser"
+        user.email = "test@example.com"
+        user.name = "Test User"
+        user.role = "user"
+
+        payload = self.auth._create_token_payload(user)
+
+        # 指定されたフィールドが含まれていることを確認
+        assert "id" in payload
+        assert "email" in payload
+        assert "name" in payload
+        assert "role" in payload
+
+        # passwordは含まれていないことを確認
+        assert "password" not in payload
+
+        # JWT標準フィールドが含まれていることを確認
+        assert "iat" in payload
+        assert "exp" in payload
+
+
+class TestIntegrationWithAPI:
+    """API統合のテスト"""
+
+    def setup_method(self):
+        """テストセットアップ"""
+        self.auth = MockDynamoDBAuth()
+        event = {}
+        context = {}
+        self.api = API(event, context)
+        self.api.auth = self.auth
+
+        # ルート登録は必ずここで
+        @self.api.post("/test")
+        def test_endpoint(user: Authenticated):
+            return {"user_id": user.id}
+
+    def test_authenticated_endpoint(self):
+        """認証が必要なエンドポイントのテスト"""
+        token = self.auth.login("testuser", "Password123")
+
+        def make_api(event, context):
+            api = API(event, context)
+            auth = self.auth
+
+            @api.post("/test")
+            @auth.require_role("user")
+            def test_endpoint(user: Authenticated):
+                return {"user_id": user.id}
+
+            return api
+
+        handler = create_lambda_handler(make_api)
+        event = {
+            "httpMethod": "POST",
+            "path": "/test",
+            "headers": {"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            "body": "{}",
+        }
+        response = handler(event, {})
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        assert body["user_id"] == "testuser"
+
+    def test_unauthenticated_request(self):
+        """認証なしでの認証必須エンドポイントアクセス"""
+
+        def make_api(event, context):
+            api = API(event, context)
+            auth = self.auth
+
+            @api.post("/test")
+            @auth.require_role("user")
+            def test_endpoint(user: Authenticated):
+                return {"user_id": user.id}
+
+            return api
+
+        handler = create_lambda_handler(make_api)
+        event = {
+            "httpMethod": "POST",
+            "path": "/test",
+            "headers": {"Content-Type": "application/json"},
+            "body": "{}",
+        }
+        response = handler(event, {})
+        assert response["statusCode"] == 401
+
+
+class TestRolePermissions:
+    """ロール権限のテスト"""
+
+    def setup_method(self):
+        """テストセットアップ"""
+        self.auth = MockDynamoDBAuth()
+        event = {}
+        context = {}
+        self.api = API(event, context)
+        self.api.auth = self.auth
+
+    def test_role_required_endpoint_success(self):
+        """ロール権限が必要なエンドポイント（成功）"""
+        token = self.auth.login("admin", "AdminPass123")
+
+        def make_api(event, context):
+            api = API(event, context)
+            api.auth = self.auth
+
+            @api.post("/admin")
+            @self.auth.require_role("admin")
+            def admin_endpoint(user: Authenticated):
+                return {"message": "admin access"}
+
+            return api
+
+        handler = create_lambda_handler(make_api)
+        event = {
+            "httpMethod": "POST",
+            "path": "/admin",
+            "headers": {"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            "body": "{}",
+        }
+        response = handler(event, {})
+        assert response["statusCode"] == 200
+
+    def test_role_required_endpoint_forbidden(self):
+        """ロール権限が不足している場合のエラー"""
+        token = self.auth.login("testuser", "Password123")
+
+        def make_api(event, context):
+            api = API(event, context)
+            api.auth = self.auth
+
+            @api.post("/admin")
+            @self.auth.require_role("admin")
+            def admin_endpoint(user: Authenticated):
+                return {"message": "admin access"}
+
+            return api
+
+        handler = create_lambda_handler(make_api)
+        event = {
+            "httpMethod": "POST",
+            "path": "/admin",
+            "headers": {"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            "body": "{}",
+        }
+        response = handler(event, {})
+        assert response["statusCode"] == 403
 
 
 if __name__ == "__main__":
-    # 簡単なテスト実行
-    print("認証機能の基本テストを実行中...")
-
-    try:
-        # BaseUser のテスト
-        print("✓ BaseUser 作成テスト")
-        user = BaseUser("test", "Password123!")
-        assert user.verify_password("Password123!")
-        print("✓ パスワード検証テスト")
-
-        # CustomUser のテスト
-        custom_user = CustomUser("custom", "Password123!", "Test User", "test@example.com")
-        assert custom_user.email == "test@example.com"
-        print("✓ CustomUser 作成テスト")
-
-        user_dict = custom_user.to_dict()
-        assert "password" not in user_dict
-        print("✓ 辞書変換テスト")
-
-        payload = custom_user.to_token_payload()
-        assert "iat" in payload and "exp" in payload
-        print("✓ トークンペイロード作成テスト")
-
-        print("\n✅ 基本テストが完了しました！")
-
-    except Exception as e:
-        print(f"\n❌ テスト失敗: {e}")
-        raise
+    pytest.main([__file__])

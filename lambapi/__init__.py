@@ -44,12 +44,11 @@ from .dev_tools import serve
 
 # 認証機能（オプション）
 try:
-    from .auth import BaseUser, DynamoDBAuth
+    from .auth import DynamoDBAuth
 
     _AUTH_AVAILABLE = True
 except ImportError:
     _AUTH_AVAILABLE = False
-    BaseUser = None  # type: ignore
     DynamoDBAuth = None  # type: ignore
 
 __version__ = "0.2.14"
@@ -90,4 +89,4 @@ __all__ = [
 
 # 認証機能が利用可能な場合のみ追加
 if _AUTH_AVAILABLE:
-    __all__.extend(["BaseUser", "DynamoDBAuth"])
+    __all__.extend(["DynamoDBAuth"])
