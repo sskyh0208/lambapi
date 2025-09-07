@@ -46,7 +46,11 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.details
@@ -77,23 +81,16 @@ plugins:
             show_symbol_type_toc: true
 
 nav:
-  - ホーム: index.md
-  - はじめに:
-    - クイックスタート: getting-started/quickstart.md
-    - インストール: getting-started/installation.md
-    - 基本概念: getting-started/concepts.md
-    - ローカル開発: getting-started/local-development.md
-  - チュートリアル:
-    - 基本的な API: tutorial/basic-api.md
-    - CORS 設定: tutorial/cors.md
-  - API リファレンス:
-    - API: api/api.md
-  - 実践ガイド:
-    - 認証システム: guides/authentication.md
-    - デプロイメント: guides/deployment.md
-    - リリース: guides/release.md
-  - 例とサンプル:
-    - 基本例: examples/basic.md
+  - ホーム: README.md
+  - クイックスタート: quickstart.md
+  - コア機能:
+    - API クラス: core/api.md
+    - 依存性注入: core/dependencies.md
+  - 認証:
+    - 認証概要: auth/overview.md
+  - サンプル:
+    - 基本 API: examples/basic-api.md
+    - 認証付き API: examples/authentication.md
 
 extra:
   version:

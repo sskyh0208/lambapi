@@ -57,6 +57,7 @@ setup(
             "boto3>=1.28.0",
             "PyJWT>=2.8.0",
             "bcrypt>=4.0.0",
+            "pynamodb>=5.0.0",
         ],
         "dev": [
             "pytest>=6.0",

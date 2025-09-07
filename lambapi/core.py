@@ -474,7 +474,7 @@ class API(BaseRouterMixin):
         elif isinstance(result, dict):
             response = Response(result)
         else:
-            # Pydantic BaseModel の場合は辞書に変換
+            # Pydantic Model の場合は辞書に変換
             if hasattr(result, "model_dump") or hasattr(result, "dict"):
                 # json_encoders を考慮した変換を行う
                 from .validation import convert_to_dict
@@ -539,7 +539,7 @@ class API(BaseRouterMixin):
                 user = auth_instance.get_authenticated_user(request)
 
                 # ロール権限チェック
-                if auth_instance.user_model.is_role_permission_enabled():
+                if auth_instance.is_role_permission:
                     user_role = getattr(user, "role", None)
                     if user_role not in required_roles:
                         from .exceptions import AuthorizationError
