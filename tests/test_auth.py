@@ -35,7 +35,7 @@ class EmailIndex(GlobalSecondaryIndex):
     email = UnicodeAttribute(hash_key=True)
 
 
-class TestUser(Model):
+class MockUser(Model):
     """テスト用ユーザーモデル"""
 
     class Meta:
@@ -52,7 +52,7 @@ class TestUser(Model):
     is_active = BooleanAttribute(default=True)
 
 
-class TestUserSession(Model):
+class MockUserSession(Model):
     """テスト用ユーザーセッションモデル"""
 
     class Meta:
@@ -75,8 +75,8 @@ class MockDynamoDBAuth(DynamoDBAuth):
     def __init__(self, **kwargs):
         # テスト用のデフォルト設定
         defaults = {
-            "user_model": TestUser,
-            "session_model": TestUserSession,
+            "user_model": MockUser,
+            "session_model": MockUserSession,
             "secret_key": "test_secret_key_for_testing",
             "expiration": 3600,
             "is_email_login": True,
@@ -91,7 +91,7 @@ class MockDynamoDBAuth(DynamoDBAuth):
 
     def _init_save_mock_user(self):
         """テスト用のユーザー保存（モック）"""
-        user = TestUser(
+        user = MockUser(
             id="testuser",
             password=self._hash_password("Password123"),
             email="test@example.com",
@@ -100,7 +100,7 @@ class MockDynamoDBAuth(DynamoDBAuth):
         )
         user.save()
 
-        admin = TestUser(
+        admin = MockUser(
             id="admin",
             password=self._hash_password("AdminPass123"),
             email="admin@example.com",
@@ -112,9 +112,9 @@ class MockDynamoDBAuth(DynamoDBAuth):
     def get_user_by_id(self, user_id):
         """テスト用のユーザー取得（モック）"""
         if user_id == "testuser":
-            return TestUser.get("testuser", consistent_read=True)
+            return MockUser.get("testuser", consistent_read=True)
         elif user_id == "admin":
-            return TestUser.get("admin", consistent_read=True)
+            return MockUser.get("admin", consistent_read=True)
         return None
 
 
@@ -124,12 +124,12 @@ class TestDynamoDBAuthConstructor:
     def test_basic_constructor(self):
         """基本的なコンストラクタのテスト"""
         auth = DynamoDBAuth(
-            user_model=TestUser,
-            session_model=TestUserSession,
+            user_model=MockUser,
+            session_model=MockUserSession,
             secret_key="test_secret",
         )
 
-        assert auth.user_model == TestUser
+        assert auth.user_model == MockUser
         assert auth.secret_key == "test_secret"
         assert auth.expiration == 3600
         assert auth.is_email_login is False
@@ -138,8 +138,8 @@ class TestDynamoDBAuthConstructor:
     def test_constructor_with_all_params(self):
         """全パラメータ指定のテスト"""
         auth = DynamoDBAuth(
-            user_model=TestUser,
-            session_model=TestUserSession,
+            user_model=MockUser,
+            session_model=MockUserSession,
             secret_key="test_secret",
             expiration=7200,
             is_email_login=True,
@@ -159,7 +159,7 @@ class TestDynamoDBAuthConstructor:
         """コンストラクタのバリデーションエラー"""
         # 無効なuser_model
         with pytest.raises(ValueError, match="must be a PynamoDB Model"):
-            DynamoDBAuth(user_model=str, session_model=TestUserSession, secret_key="test")
+            DynamoDBAuth(user_model=str, session_model=MockUserSession, secret_key="test")
 
         # email_login=True but no email index
         class NoIndexUser(Model):
@@ -171,7 +171,7 @@ class TestDynamoDBAuthConstructor:
         with pytest.raises(ValueError, match="requires a GlobalSecondaryIndex"):
             DynamoDBAuth(
                 user_model=NoIndexUser,
-                session_model=TestUserSession,
+                session_model=MockUserSession,
                 secret_key="test",
                 is_email_login=True,
             )
@@ -181,8 +181,8 @@ class TestDynamoDBAuthConstructor:
             ValueError, match="password フィールドはトークンに含めることができません"
         ):
             DynamoDBAuth(
-                user_model=TestUser,
-                session_model=TestUserSession,
+                user_model=MockUser,
+                session_model=MockUserSession,
                 secret_key="test",
                 token_include_fields=["id", "password"],
             )
@@ -193,7 +193,7 @@ class TestPasswordValidation:
 
     def test_password_validation_basic(self):
         """基本的なパスワードバリデーション"""
-        auth = DynamoDBAuth(user_model=TestUser, session_model=TestUserSession, secret_key="test")
+        auth = DynamoDBAuth(user_model=MockUser, session_model=MockUserSession, secret_key="test")
 
         # 正常なパスワード
         auth.validate_password("password123")
@@ -205,8 +205,8 @@ class TestPasswordValidation:
     def test_password_requirements(self):
         """パスワード要件のテスト"""
         auth = DynamoDBAuth(
-            user_model=TestUser,
-            session_model=TestUserSession,
+            user_model=MockUser,
+            session_model=MockUserSession,
             secret_key="test",
             password_require_uppercase=True,
             password_require_lowercase=True,
@@ -234,18 +234,18 @@ class TestPasswordValidation:
             auth.validate_password("Password123")
 
 
-class TestUserOperations:
+class MockUserOperations:
     """ユーザー操作のテスト"""
 
     def setup_method(self):
         """テストセットアップ（ユーザーテーブルを毎回初期化）"""
-        for user in TestUser.scan():
+        for user in MockUser.scan():
             user.delete()
         self.auth = MockDynamoDBAuth()
 
     def test_signup_success(self):
         """ユーザー登録成功のテスト"""
-        user = TestUser(
+        user = MockUser(
             id="newuser", password="Password123", email="new@example.com", name="New User"
         )
         token = self.auth.signup(user)
@@ -255,7 +255,7 @@ class TestUserOperations:
     def test_signup_conflict(self):
         """既存ユーザーでの登録エラー"""
         # 先に登録
-        user = TestUser(
+        user = MockUser(
             id="existing",
             password="Password123",
             email="existing@example.com",
@@ -295,7 +295,7 @@ class TestEmailLogin:
     def test_email_login_success(self, mock_query):
         """emailログイン成功のテスト"""
         # モックユーザー作成
-        user = TestUser()
+        user = MockUser()
         user.id = "testuser"
         user.password = self.auth._hash_password("Password123")
         user.email = "test@example.com"
@@ -318,8 +318,8 @@ class TestEmailLogin:
     def test_email_login_disabled(self):
         """emailログインが無効な場合のエラー"""
         auth = DynamoDBAuth(
-            user_model=TestUser,
-            session_model=TestUserSession,
+            user_model=MockUser,
+            session_model=MockUserSession,
             secret_key="test",
             is_email_login=False,
         )
@@ -338,7 +338,7 @@ class TestTokenGeneration:
 
     def test_token_payload_with_include_fields(self):
         """token_include_fieldsを使ったペイロード生成"""
-        user = TestUser()
+        user = MockUser()
         user.id = "testuser"
         user.email = "test@example.com"
         user.name = "Test User"
