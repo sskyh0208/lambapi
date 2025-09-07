@@ -5,10 +5,8 @@ lambapi.base_router モジュールの各機能をテストします。
 """
 
 import pytest
-from typing import Optional, Type, Union, Any
-from unittest.mock import Mock
 from lambapi.base_router import BaseRouterMixin
-from lambapi.cors import CORSConfig, create_cors_config
+from lambapi.cors import create_cors_config
 
 
 class TestBaseRouterMixin:

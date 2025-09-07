@@ -7,7 +7,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lambapi import API, Response, create_lambda_handler
+from lambapi import API, Response
 
 
 class TestAPI:

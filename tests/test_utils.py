@@ -5,8 +5,7 @@ lambapi.utils モジュールの各機能をテストします。
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock
-from typing import Dict, Any
+from unittest.mock import Mock
 from lambapi.utils import create_lambda_handler
 from lambapi.core import API
 

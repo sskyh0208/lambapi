@@ -7,7 +7,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lambapi import API, Response, CORSConfig, create_cors_config
+from lambapi import API, create_cors_config
 
 
 class TestCORS:

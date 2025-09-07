@@ -7,8 +7,7 @@ DynamoDBAuth統合テスト
 import pytest
 import json
 import os
-from unittest.mock import MagicMock, patch
-from typing import Optional
+from unittest.mock import patch
 
 from moto import mock_aws
 from pynamodb.models import Model
@@ -23,13 +22,13 @@ from lambapi.exceptions import (
     ModelValidationError,
     PasswordValidationError,
     FeatureDisabledError,
-    RolePermissionError,
+    AuthenticationError,
+    ConflictError,
 )
 from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 
-from lambapi import API, Query, Path, Body, Authenticated, create_lambda_handler
+from lambapi import API, Authenticated, create_lambda_handler
 from lambapi.auth.dynamodb_auth import DynamoDBAuth
-from lambapi.exceptions import ValidationError, AuthenticationError, ConflictError
 
 
 class EmailIndex(GlobalSecondaryIndex):

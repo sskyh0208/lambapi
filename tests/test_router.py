@@ -4,12 +4,8 @@
 lambapi.router モジュールの各機能をテストします。
 """
 
-import pytest
-from unittest.mock import Mock
-from typing import List, Optional
 from lambapi.router import Router
-from lambapi.core import Route
-from lambapi.cors import CORSConfig, create_cors_config
+from lambapi.cors import create_cors_config
 
 
 class TestRouter:
