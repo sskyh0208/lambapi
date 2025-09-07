@@ -68,11 +68,6 @@ setup(
             "isort>=5.0",
             "bandit[toml]>=1.7",
             "safety>=2.0",
-            # テストで認証機能を使用するため auth の依存関係も含める
-            "boto3>=1.28.0",
-            "PyJWT>=2.8.0",
-            "bcrypt>=4.0.0",
-            "pynamodb>=5.0.0",
         ],
     },
     keywords="lambda api aws serverless http rest",
