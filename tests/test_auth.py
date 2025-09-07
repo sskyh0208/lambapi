@@ -6,9 +6,11 @@ DynamoDBAuth統合テスト
 
 import pytest
 import json
+import os
 from unittest.mock import MagicMock, patch
 from typing import Optional
 
+from moto import mock_aws
 from pynamodb.models import Model
 from pynamodb.attributes import (
     UnicodeAttribute,
@@ -41,7 +43,6 @@ class TestUser(Model):
     class Meta:
         table_name = "test-users"
         region = "us-east-1"
-        host = "http://localhost:8000"
 
     id = UnicodeAttribute(hash_key=True)
     password = UnicodeAttribute()
@@ -58,7 +59,6 @@ class TestUserSession(Model):
     class Meta:
         table_name = "test-user-sessions"
         region = "us-east-1"
-        host = "http://localhost:8000"
 
     id = UnicodeAttribute(hash_key=True)
     user_id = UnicodeAttribute()
@@ -91,6 +91,11 @@ class MockDynamoDBAuth(DynamoDBAuth):
 
     def _init_save_mock_user(self):
         """テスト用のユーザー保存（モック）"""
+        if not TestUser.exists():
+            TestUser.create_table(wait=True)
+        if not TestUserSession.exists():
+            TestUserSession.create_table(wait=True)
+
         user = TestUser(
             id="testuser",
             password=self._hash_password("Password123"),
@@ -234,13 +239,16 @@ class TestPasswordValidation:
             auth.validate_password("Password123")
 
 
+@mock_aws
 class TestUserOperations:
     """ユーザー操作のテスト"""
 
-    def setup_method(self):
+    def setup_method(self, method):
         """テストセットアップ（ユーザーテーブルを毎回初期化）"""
-        for user in TestUser.scan():
-            user.delete()
+        os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+        os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+        os.environ["AWS_SECURITY_TOKEN"] = "testing"
+        os.environ["AWS_SESSION_TOKEN"] = "testing"
         self.auth = MockDynamoDBAuth()
 
     def test_signup_success(self):
@@ -284,11 +292,16 @@ class TestUserOperations:
             self.auth.login("testuser", "wrongpassword")
 
 
+@mock_aws
 class TestEmailLogin:
     """emailログインのテスト"""
 
-    def setup_method(self):
+    def setup_method(self, method):
         """テストセットアップ"""
+        os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+        os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+        os.environ["AWS_SECURITY_TOKEN"] = "testing"
+        os.environ["AWS_SESSION_TOKEN"] = "testing"
         self.auth = MockDynamoDBAuth()
 
     @patch.object(EmailIndex, "query")
@@ -329,11 +342,16 @@ class TestEmailLogin:
             auth.email_login("test@example.com", "password")
 
 
+@mock_aws
 class TestTokenGeneration:
     """トークン生成のテスト"""
 
-    def setup_method(self):
+    def setup_method(self, method):
         """テストセットアップ"""
+        os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+        os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+        os.environ["AWS_SECURITY_TOKEN"] = "testing"
+        os.environ["AWS_SESSION_TOKEN"] = "testing"
         self.auth = MockDynamoDBAuth()
 
     def test_token_payload_with_include_fields(self):
@@ -360,11 +378,16 @@ class TestTokenGeneration:
         assert "exp" in payload
 
 
+@mock_aws
 class TestIntegrationWithAPI:
     """API統合のテスト"""
 
-    def setup_method(self):
+    def setup_method(self, method):
         """テストセットアップ"""
+        os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+        os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+        os.environ["AWS_SECURITY_TOKEN"] = "testing"
+        os.environ["AWS_SESSION_TOKEN"] = "testing"
         self.auth = MockDynamoDBAuth()
         event = {}
         context = {}
@@ -428,11 +451,16 @@ class TestIntegrationWithAPI:
         assert response["statusCode"] == 401
 
 
+@mock_aws
 class TestRolePermissions:
     """ロール権限のテスト"""
 
-    def setup_method(self):
+    def setup_method(self, method):
         """テストセットアップ"""
+        os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+        os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+        os.environ["AWS_SECURITY_TOKEN"] = "testing"
+        os.environ["AWS_SESSION_TOKEN"] = "testing"
         self.auth = MockDynamoDBAuth()
         event = {}
         context = {}

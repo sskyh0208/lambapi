@@ -44,6 +44,7 @@ dev = [
     "pre-commit>=3.0",
     "uvicorn[standard]>=0.24.0",
     "pynamodb>=5.0",
+    "moto[dynamodb]>=4.0",
 ]
 validation = [
     "pydantic>=2.0",
@@ -54,6 +55,7 @@ auth = [
     "bcrypt>=4.0.0",
     "cryptography>=41.0.0",
     "pynamodb>=5.0",
+    "moto[dynamodb]>=4.0",
 ]
 
 [project.scripts]
