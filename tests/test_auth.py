@@ -24,6 +24,7 @@ from lambapi.exceptions import (
     FeatureDisabledError,
     AuthenticationError,
     ConflictError,
+    ValidationError,
 )
 from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 
@@ -279,6 +280,103 @@ class TestUserOperations:
         # 同じIDで再登録
         with pytest.raises(ConflictError, match="ユーザーIDは既に存在します"):
             self.auth.signup(user)
+
+    def test_signup_email_validation_disabled(self):
+        """email_loginが無効時はemailバリデーションなし"""
+        # email_login=Falseの認証インスタンスを明示的に作成
+        auth_without_email = MockDynamoDBAuth(is_email_login=False)
+
+        # email_login=Falseの場合でも、PynamoDBモデルの制約上emailは必須
+        # しかし、バリデーション処理では空文字やダミー値を受け入れる
+        user = TestUser(
+            id="nomail", password="Password123", email="dummy@example.com", name="No Mail User"
+        )
+        token = auth_without_email.signup(user)
+        assert isinstance(token, str)
+
+    def test_signup_email_validation_enabled_success(self):
+        """email_login有効時の正常なemailでの登録"""
+        # email_login=Trueの認証インスタンスを作成
+        auth_with_email = MockDynamoDBAuth(is_email_login=True)
+
+        user = TestUser(
+            id="mailuser", password="Password123", email="valid@example.com", name="Mail User"
+        )
+        token = auth_with_email.signup(user)
+        assert isinstance(token, str)
+
+    def test_signup_email_validation_enabled_missing_email(self):
+        """email_login有効時にemailが欠如している場合のエラー"""
+        auth_with_email = MockDynamoDBAuth(is_email_login=True)
+
+        user = TestUser(id="nomailuser", password="Password123", name="No Mail User")
+        with pytest.raises(ValidationError, match="email は必須です"):
+            auth_with_email.signup(user)
+
+    def test_signup_email_validation_enabled_empty_email(self):
+        """email_login有効時にemailが空の場合のエラー"""
+        auth_with_email = MockDynamoDBAuth(is_email_login=True)
+
+        user = TestUser(
+            id="emptymailuser", password="Password123", email="", name="Empty Mail User"
+        )
+        with pytest.raises(ValidationError, match="email は必須です"):
+            auth_with_email.signup(user)
+
+    def test_signup_invalid_email_format(self):
+        """無効なメール形式でのエラー"""
+        auth_with_email = MockDynamoDBAuth(is_email_login=True)
+
+        invalid_emails = [
+            "invalid-email",
+            "@example.com",
+            "user@",
+            "user..name@example.com",
+            "user@.com",
+            "user@example",
+            "user name@example.com",
+        ]
+
+        for i, invalid_email in enumerate(invalid_emails):
+            user = TestUser(
+                id=f"user_{i}",  # IDを単純化
+                password="Password123",
+                email=invalid_email,
+                name="Test User",
+            )
+            with pytest.raises(ValidationError, match="有効なメールアドレスを入力してください"):
+                auth_with_email.signup(user)
+
+    def test_signup_email_too_long(self):
+        """メールアドレスが長すぎる場合のエラー"""
+        auth_with_email = MockDynamoDBAuth(is_email_login=True)
+
+        # 254文字を超えるメールアドレス
+        long_email = "a" * 250 + "@example.com"
+        user = TestUser(
+            id="longemailuser", password="Password123", email=long_email, name="Long Email User"
+        )
+        with pytest.raises(
+            ValidationError, match="メールアドレスは254文字以内である必要があります"
+        ):
+            auth_with_email.signup(user)
+
+    def test_signup_email_local_part_too_long(self):
+        """メールアドレスのローカル部が長すぎる場合のエラー"""
+        auth_with_email = MockDynamoDBAuth(is_email_login=True)
+
+        # ローカル部が64文字を超えるメールアドレス
+        long_local_email = "a" * 65 + "@example.com"
+        user = TestUser(
+            id="longlocaluser",
+            password="Password123",
+            email=long_local_email,
+            name="Long Local User",
+        )
+        with pytest.raises(
+            ValidationError, match="メールアドレスのローカル部は64文字以内である必要があります"
+        ):
+            auth_with_email.signup(user)
 
     def test_login_success(self):
         """ログイン成功のテスト"""

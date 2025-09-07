@@ -250,6 +250,34 @@ class DynamoDBAuth:
                 "パスワードには特殊文字を含める必要があります", requirement_type="special_char"
             )
 
+    def _validate_email(self, email: str) -> None:
+        """emailアドレスの形式バリデーション"""
+        import re
+
+        if not email:
+            raise ValidationError("email は必須です")
+
+        # より厳密なメール形式チェック
+        email_pattern = (
+            r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?@"
+            r"[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$"
+        )
+        if not re.match(email_pattern, email):
+            raise ValidationError("有効なメールアドレスを入力してください")
+
+        # 連続するドットをチェック
+        if ".." in email:
+            raise ValidationError("有効なメールアドレスを入力してください")
+
+        # メールアドレスの長さチェック
+        if len(email) > 254:  # RFC 5321での制限
+            raise ValidationError("メールアドレスは254文字以内である必要があります")
+
+        # ローカル部の長さチェック
+        local_part = email.split("@")[0]
+        if len(local_part) > 64:  # RFC 5321での制限
+            raise ValidationError("メールアドレスのローカル部は64文字以内である必要があります")
+
     def _verify_password_hash(self, hashed_password: str, password: str) -> bool:
         """ハッシュ化されたパスワードを検証"""
         import bcrypt
@@ -441,6 +469,13 @@ class DynamoDBAuth:
             raise ValidationError("id は必須です")
         if not hasattr(user, "password") or not getattr(user, "password"):
             raise ValidationError("password は必須です")
+
+        # emailログインが有効化されている場合は、emailフィールドの検証も行う
+        if self.is_email_login:
+            if not hasattr(user, "email") or not getattr(user, "email"):
+                raise ValidationError("email は必須です")
+            # emailバリデーション実行
+            self._validate_email(getattr(user, "email"))
 
         # パスワードをハッシュ化（バリデーション込み）
         hashed_password = self._hash_password(getattr(user, "password"))
