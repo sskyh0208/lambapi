@@ -701,3 +701,17 @@ class DynamoDBAuth:
     def hash_password(self, password: str) -> str:
         """パスワードをハッシュ化"""
         return self._hash_password(password)
+
+    def decode_token(self, token: str) -> Dict[str, Any]:
+        """JWTトークンをデコードして情報を取得
+
+        Args:
+            token: デコードするJWTトークン
+
+        Returns:
+            Dict[str, Any]: トークンの情報（ペイロード）
+
+        Raises:
+            AuthenticationError: トークンが無効または期限切れの場合
+        """
+        return self._decode_jwt_token(token)
