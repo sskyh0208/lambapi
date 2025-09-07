@@ -40,7 +40,8 @@ class JSONHandler:
         try:
             if HAS_ORJSON:
                 # orjson は文字列とバイト列の両方を受け入れる
-                return dict(orjson.loads(data))
+                result = orjson.loads(data)
+                return result if isinstance(result, dict) else {}
             else:
                 # 標準 json モジュールは文字列のみ
                 if isinstance(data, bytes):

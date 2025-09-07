@@ -8,13 +8,11 @@ from typing import Optional
 
 from lambapi import Query, Path, Body, Authenticated
 from lambapi.dependencies import (
-    FieldInfo,
     QueryInfo,
     PathInfo,
     BodyInfo,
     AuthenticatedInfo,
     get_function_dependencies,
-    is_dependency_parameter,
 )
 from lambapi.dependency_resolver import DependencyResolver
 from lambapi.request import Request

@@ -6,7 +6,7 @@ lambapi.validation モジュールの各機能をテストします。
 
 import pytest
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Any, Union
 from lambapi.validation import validate_and_convert, convert_to_dict, _convert_value
 
 

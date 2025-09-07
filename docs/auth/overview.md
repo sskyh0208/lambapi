@@ -303,16 +303,163 @@ except AuthenticationError as e:
     return {"error": str(e)}, 401
 ```
 
-### バリデーションエラー
+### DynamoDBAuth 専用例外クラス
+
+v0.2.15 以降、DynamoDBAuth は設定や用途に応じた専用例外クラスを提供します：
+
+#### 設定エラー（AuthConfigError）
 
 ```python
-from lambapi.exceptions import ValidationError
+from lambapi.exceptions import AuthConfigError
 
 try:
-    user = User(id="test", password="123")  # 短すぎるパスワード
-    auth.signup(user)
-except ValidationError as e:
-    return {"error": str(e)}, 400
+    # 無効な設定でのDynamoDBAuth初期化
+    auth = DynamoDBAuth(
+        user_model=str,  # PynamoDBモデルではない
+        session_model=UserSession,
+        secret_key="secret"
+    )
+except AuthConfigError as e:
+    print(f"設定エラー: {e.message}")
+    print(f"設定タイプ: {e.details['config_type']}")  # "user_model"
+```
+
+#### パスワード要件エラー（PasswordValidationError）
+
+```python
+from lambapi.exceptions import PasswordValidationError
+
+try:
+    auth.validate_password("123")  # 短すぎるパスワード
+except PasswordValidationError as e:
+    print(f"パスワードエラー: {e.message}")
+    print(f"要件タイプ: {e.details['requirement_type']}")  # "min_length"
+```
+
+#### モデル定義エラー（ModelValidationError）
+
+```python
+from lambapi.exceptions import ModelValidationError
+
+try:
+    # トークンにpasswordフィールドを含める（禁止）
+    auth = DynamoDBAuth(
+        user_model=User,
+        session_model=UserSession,
+        secret_key="secret",
+        token_include_fields=["id", "password"]
+    )
+except ModelValidationError as e:
+    print(f"モデルエラー: {e.message}")
+    print(f"フィールド: {e.details['field_name']}")  # "password"
+```
+
+#### 機能無効エラー（FeatureDisabledError）
+
+```python
+from lambapi.exceptions import FeatureDisabledError
+
+try:
+    # emailログインが無効な状態で実行
+    auth = DynamoDBAuth(user_model=User, session_model=UserSession, 
+                       secret_key="secret", is_email_login=False)
+    token = auth.email_login("user@example.com", "password")
+except FeatureDisabledError as e:
+    print(f"機能エラー: {e.message}")
+    print(f"機能名: {e.details['feature_name']}")  # "email_login"
+```
+
+#### ロール権限不足エラー（RolePermissionError）
+
+```python
+from lambapi.exceptions import RolePermissionError
+
+@app.post("/admin/settings")
+@auth.require_role("admin")  
+def update_settings(user: Authenticated, data: dict = Body(...)):
+    # userロールでアクセスした場合、自動的にRolePermissionErrorが発生
+    return {"message": "設定を更新しました"}
+
+# エラーハンドリング
+try:
+    # 内部的にrequire_roleデコレータで実行
+    pass
+except RolePermissionError as e:
+    print(f"権限エラー: {e.message}")
+    print(f"ユーザーロール: {e.details['user_role']}")      # "user"
+    print(f"必要なロール: {e.details['required_roles']}")   # ["admin"]
+    print(f"リソース: {e.details['resource']}")            # "endpoint"
+    print(f"アクション: {e.details['action']}")            # "access"
+```
+
+### エラー統合ハンドリング
+
+```python
+from lambapi.exceptions import (
+    AuthConfigError, PasswordValidationError, 
+    ModelValidationError, FeatureDisabledError, RolePermissionError,
+    AuthenticationError, ValidationError
+)
+
+def handle_auth_setup():
+    try:
+        auth = DynamoDBAuth(
+            user_model=User,
+            session_model=UserSession,
+            secret_key=os.environ["JWT_SECRET"],
+            is_email_login=True,
+            password_min_length=12,
+            password_require_uppercase=True
+        )
+        return auth
+        
+    except AuthConfigError as e:
+        # 設定エラー: 開発者向けエラー
+        logger.error(f"認証設定エラー [{e.details.get('config_type')}]: {e.message}")
+        raise
+        
+    except ModelValidationError as e:
+        # モデルエラー: 開発者向けエラー
+        logger.error(f"モデル定義エラー [{e.details.get('model_name')}]: {e.message}")
+        raise
+
+def signup_user(user_data):
+    try:
+        user = User(**user_data)
+        token = auth.signup(user)
+        return {"token": token}
+        
+    except PasswordValidationError as e:
+        # パスワードエラー: ユーザー向けエラー
+        return {
+            "error": "パスワード要件違反",
+            "message": e.message,
+            "requirement": e.details.get('requirement_type'),
+            "field": e.details.get('field')
+        }, 400
+        
+    except ValidationError as e:
+        # 一般バリデーションエラー
+        return {"error": e.message}, 400
+        
+    except AuthenticationError as e:
+        # 認証エラー
+        return {"error": "認証に失敗しました"}, 401
+```
+
+### エラーレスポンス構造
+
+すべての専用例外クラスは構造化されたレスポンスを提供します：
+
+```python
+{
+    "error": "AUTH_CONFIG_ERROR",  # エラーコード
+    "message": "user_model must be a PynamoDB Model",  # エラーメッセージ
+    "status_code": 500,  # HTTPステータスコード
+    "details": {  # 詳細情報
+        "config_type": "user_model"
+    }
+}
 ```
 
 ## 📈 パフォーマンス最適化

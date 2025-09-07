@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from lambapi import (
     API,
     Response,
-    create_lambda_handler,
     ValidationError,
     NotFoundError,
     AuthenticationError,
@@ -21,8 +20,6 @@ from lambapi import (
     TimeoutError,
     InternalServerError,
     ServiceUnavailableError,
-    error_handler,
-    default_error_handler,
 )
 
 

@@ -9,7 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
-from lambapi import API, Response, create_lambda_handler
+from lambapi import API, create_lambda_handler
 
 
 def create_test_app(event, context):

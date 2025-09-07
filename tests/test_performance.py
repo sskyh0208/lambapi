@@ -7,12 +7,9 @@ JSON 処理とルート検索の性能改善を検証します。
 
 import json
 import time
-import pytest
-from typing import Dict, Any
 
 from lambapi.json_handler import JSONHandler
-from lambapi.core import API, Route
-from lambapi.request import Request
+from lambapi.core import API
 
 
 class TestJSONPerformance:

@@ -15,10 +15,14 @@ from pynamodb.exceptions import PutError
 from ..request import Request
 from ..exceptions import (
     AuthenticationError,
-    AuthorizationError,
     ValidationError,
     ConflictError,
     NotFoundError,
+    AuthConfigError,
+    ModelValidationError,
+    PasswordValidationError,
+    FeatureDisabledError,
+    RolePermissionError,
 )
 
 
@@ -61,10 +65,16 @@ class DynamoDBAuth:
         """
         # PynamoDB モデルの検証
         if not hasattr(user_model, "Meta"):
-            raise ValueError(f"user_model must be a PynamoDB Model, got {type(user_model)}")
+            raise AuthConfigError(
+                f"user_model must be a PynamoDB Model, got {type(user_model)}",
+                config_type="user_model",
+            )
 
         if not hasattr(session_model, "Meta"):
-            raise ValueError(f"session_model must be a PynamoDB Model, got {type(session_model)}")
+            raise AuthConfigError(
+                f"session_model must be a PynamoDB Model, got {type(session_model)}",
+                config_type="session_model",
+            )
 
         # バリデーション実行
         if is_email_login:
@@ -113,10 +123,11 @@ class DynamoDBAuth:
                     break
 
         if not email_index_found:
-            raise ValueError(
+            raise AuthConfigError(
                 f"is_email_login=True requires a GlobalSecondaryIndex with 'email' "
                 f"as hash_key in model '{user_model.__name__}'. "
-                f"Please define an email index like: email_index = EmailIndex()"
+                f"Please define an email index like: email_index = EmailIndex()",
+                config_type="email_index",
             )
 
         # インデックス名を保存（後でクエリ時に使用）
@@ -137,29 +148,41 @@ class DynamoDBAuth:
         missing_fields = []
         for field in fields:
             if field == "password":
-                raise ValueError("password フィールドはトークンに含めることができません")
+                raise ModelValidationError(
+                    "password フィールドはトークンに含めることができません", field_name="password"
+                )
 
             if field not in model_attributes:
                 missing_fields.append(field)
 
         if missing_fields:
-            raise ValueError(
+            raise ModelValidationError(
                 f"以下のフィールドがモデル '{user_model.__name__}' に存在しません: "
                 f"{', '.join(missing_fields)}\n"
-                f"利用可能なフィールド: {', '.join(sorted(model_attributes))}"
+                f"利用可能なフィールド: {', '.join(sorted(model_attributes))}",
+                model_name=user_model.__name__,
+                details={
+                    "missing_fields": missing_fields,
+                    "available_fields": sorted(model_attributes),
+                },
             )
 
     def _validate_session_model(self, session_model) -> None:
         """session_modelのバリデーション"""
         if session_model is None:
-            raise ValueError("session_modelは必須です")
+            raise AuthConfigError("session_modelは必須です", config_type="session_model")
 
         # PynamoDBのModelかチェック
         try:
             if not issubclass(session_model, Model):
-                raise ValueError("session_modelはPynamoDBのModelクラスである必要があります")
+                raise AuthConfigError(
+                    "session_modelはPynamoDBのModelクラスである必要があります",
+                    config_type="session_model",
+                )
         except ImportError:
-            raise ValueError("session_modelを使用するにはPynamoDBが必要です")
+            raise AuthConfigError(
+                "session_modelを使用するにはPynamoDBが必要です", config_type="session_model"
+            )
 
         # 必要な属性があるかチェック
         required_attributes = ["id", "user_id", "token", "expires_at"]
@@ -167,7 +190,9 @@ class DynamoDBAuth:
         try:
             from pynamodb.attributes import Attribute
         except ImportError:
-            raise ValueError("session_modelの検証にはPynamoDBが必要です")
+            raise AuthConfigError(
+                "session_modelの検証にはPynamoDBが必要です", config_type="session_model"
+            )
 
         # PynamoDBのAttributeを収集
         model_attributes = []
@@ -182,11 +207,17 @@ class DynamoDBAuth:
                 missing_attributes.append(attr)
 
         if missing_attributes:
-            raise ValueError(
+            raise ModelValidationError(
                 f"session_model '{session_model.__name__}' に必要な属性が存在しません: "
                 f"{', '.join(missing_attributes)}\n"
                 f"必要な属性: {', '.join(required_attributes)}\n"
-                f"利用可能な属性: {', '.join(sorted(model_attributes))}"
+                f"利用可能な属性: {', '.join(sorted(model_attributes))}",
+                model_name=session_model.__name__,
+                details={
+                    "missing_attributes": missing_attributes,
+                    "required_attributes": required_attributes,
+                    "available_attributes": sorted(model_attributes),
+                },
             )
 
     def _validate_password(self, password: str) -> None:
@@ -194,19 +225,30 @@ class DynamoDBAuth:
         import re
 
         if len(password) < self.password_min_length:
-            raise ValueError(f"パスワードは{self.password_min_length}文字以上である必要があります")
+            raise PasswordValidationError(
+                f"パスワードは{self.password_min_length}文字以上である必要があります",
+                requirement_type="min_length",
+            )
 
         if self.password_require_uppercase and not re.search(r"[A-Z]", password):
-            raise ValueError("パスワードには大文字を含める必要があります")
+            raise PasswordValidationError(
+                "パスワードには大文字を含める必要があります", requirement_type="uppercase"
+            )
 
         if self.password_require_lowercase and not re.search(r"[a-z]", password):
-            raise ValueError("パスワードには小文字を含める必要があります")
+            raise PasswordValidationError(
+                "パスワードには小文字を含める必要があります", requirement_type="lowercase"
+            )
 
         if self.password_require_digit and not re.search(r"\d", password):
-            raise ValueError("パスワードには数字を含める必要があります")
+            raise PasswordValidationError(
+                "パスワードには数字を含める必要があります", requirement_type="digit"
+            )
 
         if self.password_require_special and not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-            raise ValueError("パスワードには特殊文字を含める必要があります")
+            raise PasswordValidationError(
+                "パスワードには特殊文字を含める必要があります", requirement_type="special_char"
+            )
 
     def _verify_password_hash(self, hashed_password: str, password: str) -> bool:
         """ハッシュ化されたパスワードを検証"""
@@ -388,9 +430,11 @@ class DynamoDBAuth:
         # Modelインスタンスかチェック
         try:
             if not isinstance(user, Model):
-                raise ValueError("user は PynamoDB Model インスタンスである必要があります")
+                raise ModelValidationError(
+                    "user は PynamoDB Model インスタンスである必要があります", model_name="user"
+                )
         except ImportError:
-            raise ValueError("PynamoDB が必要です")
+            raise AuthConfigError("PynamoDB が必要です", config_type="dependencies")
 
         # 必須フィールドの検証
         if not hasattr(user, "id") or not getattr(user, "id"):
@@ -450,10 +494,14 @@ class DynamoDBAuth:
     def email_login(self, email: str, password: str) -> str:
         """emailでユーザーログイン（GSI使用）"""
         if not self.is_email_login:
-            raise ValueError("Emailログインは無効化されています")
+            raise FeatureDisabledError(
+                "Emailログインは無効化されています", feature_name="email_login"
+            )
 
         if not self._email_index_attr:
-            raise ValueError("Emailログイン用のGSIが設定されていません")
+            raise AuthConfigError(
+                "Emailログイン用のGSIが設定されていません", config_type="email_index"
+            )
 
         try:
             # GSIを使ってemailで検索
@@ -608,7 +656,13 @@ class DynamoDBAuth:
                 if self.is_role_permission:
                     user_role = getattr(user, "role", None)
                     if user_role not in required_roles:
-                        raise AuthorizationError(f"必要なロール: {', '.join(required_roles)}")
+                        raise RolePermissionError(
+                            f"必要なロール: {', '.join(required_roles)}",
+                            user_role=user_role,
+                            required_roles=required_roles,
+                            resource="endpoint",
+                            action="access",
+                        )
 
                 # 認証されたユーザーを request オブジェクトに保存（依存性注入システム用）
                 setattr(request, "_authenticated_user", user)
@@ -647,3 +701,17 @@ class DynamoDBAuth:
     def hash_password(self, password: str) -> str:
         """パスワードをハッシュ化"""
         return self._hash_password(password)
+
+    def decode_token(self, token: str) -> Dict[str, Any]:
+        """JWTトークンをデコードして情報を取得
+
+        Args:
+            token: デコードするJWTトークン
+
+        Returns:
+            Dict[str, Any]: トークンの情報（ペイロード）
+
+        Raises:
+            AuthenticationError: トークンが無効または期限切れの場合
+        """
+        return self._decode_jwt_token(token)

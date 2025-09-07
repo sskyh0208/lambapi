@@ -68,6 +68,7 @@ setup(
             "isort>=5.0",
             "bandit[toml]>=1.7",
             "safety>=2.0",
+            "orjson>=3.9.0",
         ],
     },
     keywords="lambda api aws serverless http rest",
