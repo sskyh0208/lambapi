@@ -18,6 +18,13 @@ from pynamodb.attributes import (
     UTCDateTimeAttribute,
     NumberAttribute,
 )
+from lambapi.exceptions import (
+    AuthConfigError,
+    ModelValidationError,
+    PasswordValidationError,
+    FeatureDisabledError,
+    RolePermissionError,
+)
 from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 
 from lambapi import API, Query, Path, Body, Authenticated, create_lambda_handler
@@ -163,7 +170,7 @@ class TestDynamoDBAuthConstructor:
     def test_constructor_validation_errors(self):
         """コンストラクタのバリデーションエラー"""
         # 無効なuser_model
-        with pytest.raises(ValueError, match="must be a PynamoDB Model"):
+        with pytest.raises(AuthConfigError, match="must be a PynamoDB Model"):
             DynamoDBAuth(user_model=str, session_model=TestUserSession, secret_key="test")
 
         # email_login=True but no email index
@@ -173,7 +180,7 @@ class TestDynamoDBAuthConstructor:
 
             id = UnicodeAttribute(hash_key=True)
 
-        with pytest.raises(ValueError, match="requires a GlobalSecondaryIndex"):
+        with pytest.raises(AuthConfigError, match="requires a GlobalSecondaryIndex"):
             DynamoDBAuth(
                 user_model=NoIndexUser,
                 session_model=TestUserSession,
@@ -183,7 +190,7 @@ class TestDynamoDBAuthConstructor:
 
         # 無効なtoken_include_fields
         with pytest.raises(
-            ValueError, match="password フィールドはトークンに含めることができません"
+            ModelValidationError, match="password フィールドはトークンに含めることができません"
         ):
             DynamoDBAuth(
                 user_model=TestUser,
@@ -204,7 +211,7 @@ class TestPasswordValidation:
         auth.validate_password("password123")
 
         # 短すぎるパスワード
-        with pytest.raises(ValueError, match="8文字以上"):
+        with pytest.raises(PasswordValidationError, match="8文字以上"):
             auth.validate_password("short")
 
     def test_password_requirements(self):
@@ -223,19 +230,19 @@ class TestPasswordValidation:
         auth.validate_password("Password123!")
 
         # 大文字不足
-        with pytest.raises(ValueError, match="大文字を含める"):
+        with pytest.raises(PasswordValidationError, match="大文字を含める"):
             auth.validate_password("password123!")
 
         # 小文字不足
-        with pytest.raises(ValueError, match="小文字を含める"):
+        with pytest.raises(PasswordValidationError, match="小文字を含める"):
             auth.validate_password("PASSWORD123!")
 
         # 数字不足
-        with pytest.raises(ValueError, match="数字を含める"):
+        with pytest.raises(PasswordValidationError, match="数字を含める"):
             auth.validate_password("Password!")
 
         # 特殊文字不足
-        with pytest.raises(ValueError, match="特殊文字を含める"):
+        with pytest.raises(PasswordValidationError, match="特殊文字を含める"):
             auth.validate_password("Password123")
 
 
@@ -338,7 +345,7 @@ class TestEmailLogin:
         )
 
         auth = MockDynamoDBAuth(is_email_login=False)
-        with pytest.raises(ValueError, match="Emailログインは無効化されています"):
+        with pytest.raises(FeatureDisabledError, match="Emailログインは無効化されています"):
             auth.email_login("test@example.com", "password")
 
 

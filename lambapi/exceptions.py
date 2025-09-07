@@ -201,6 +201,110 @@ class TimeoutError(APIError):
         )
 
 
+# DynamoDBAuth専用の例外クラス
+class AuthConfigError(APIError):
+    """認証設定エラー"""
+
+    def __init__(
+        self,
+        message: str,
+        config_type: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if config_type:
+            error_details["config_type"] = config_type
+
+        super().__init__(
+            message=message, status_code=500, error_code="AUTH_CONFIG_ERROR", details=error_details
+        )
+
+
+class ModelValidationError(APIError):
+    """モデルバリデーションエラー"""
+
+    def __init__(
+        self,
+        message: str,
+        model_name: Optional[str] = None,
+        field_name: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if model_name:
+            error_details["model_name"] = model_name
+        if field_name:
+            error_details["field_name"] = field_name
+
+        super().__init__(
+            message=message,
+            status_code=400,
+            error_code="MODEL_VALIDATION_ERROR",
+            details=error_details,
+        )
+
+
+class PasswordValidationError(ValidationError):
+    """パスワードバリデーションエラー"""
+
+    def __init__(
+        self,
+        message: str,
+        requirement_type: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if requirement_type:
+            error_details["requirement_type"] = requirement_type
+
+        super().__init__(message=message, field="password", details=error_details)
+
+
+class FeatureDisabledError(APIError):
+    """機能無効化エラー"""
+
+    def __init__(
+        self,
+        message: str,
+        feature_name: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if feature_name:
+            error_details["feature_name"] = feature_name
+
+        super().__init__(
+            message=message, status_code=400, error_code="FEATURE_DISABLED", details=error_details
+        )
+
+
+class RolePermissionError(APIError):
+    """権限不足エラー"""
+
+    def __init__(
+        self,
+        message: str,
+        user_role: Optional[str] = None,
+        required_roles: Optional[List[str]] = None,
+        resource: Optional[str] = None,
+        action: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if user_role:
+            error_details["user_role"] = user_role
+        if required_roles:
+            error_details["required_roles"] = required_roles
+        if resource:
+            error_details["resource"] = resource
+        if action:
+            error_details["action"] = action
+
+        super().__init__(
+            message=message, status_code=403, error_code="PERMISSION_DENIED", details=error_details
+        )
+
+
 # 便利な関数
 def create_error_response(error: APIError, request_id: Optional[str] = None) -> Dict[str, Any]:
     """エラーレスポンスを作成"""
